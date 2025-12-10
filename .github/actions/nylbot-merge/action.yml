@@ -1,0 +1,82 @@
+# =============================================================================
+# nylbot-merge - PR Merge Automation Action
+# =============================================================================
+# A composite action that provides automated PR merging via the `/nylbot merge`
+# command in PR comments. This action encapsulates all the validation and
+# merge logic previously in the reusable workflow.
+#
+# USAGE:
+# This action is called from a workflow triggered by issue_comment events.
+#
+#   on:
+#     issue_comment:
+#       types: [created]
+#
+#   jobs:
+#     nylbot-merge:
+#       runs-on: ubuntu-latest
+#       permissions:
+#         contents: write
+#         pull-requests: write
+#         issues: write
+#       steps:
+#         - uses: {ORG}/{REPO}/.github/actions/nylbot-merge@master
+#           with:
+#             github-token: ${{ secrets.GITHUB_TOKEN }}
+#             release_branch_prefix: "release/"
+#             develop_branch: "develop"
+#             sync_branch_prefix: "fix/sync/"
+#
+# NOTES:
+# - Replace `{ORG}` with the organization or user name and `{REPO}` with the
+#   repository name where this action is hosted.
+# - For users who prefer a more stable reference, consider using a fixed
+#   version tag like `@v1.0.0` instead of `@master`.
+#
+# LIMITATIONS:
+# - Fork PRs are NOT supported (GITHUB_TOKEN has limited permissions)
+# - Only organization owners, members, or collaborators with write access
+#   can use the `/nylbot merge` command
+#
+# THIRD-PARTY LICENSES:
+# - Twemoji graphics (https://github.com/twitter/twemoji) are used for emoji
+#   display compatibility. Licensed under CC-BY 4.0.
+# =============================================================================
+
+name: 'nylbot-merge'
+description: 'Automated PR merging with validation checks via /nylbot merge command'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API authentication'
+    required: true
+  release_branch_prefix:
+    description: 'Prefix for release branches (e.g., "release/")'
+    required: false
+    default: 'release/'
+  develop_branch:
+    description: 'Name of the develop branch'
+    required: false
+    default: 'develop'
+  sync_branch_prefix:
+    description: 'Prefix for sync branches used in back-merges (e.g., "fix/sync/")'
+    required: false
+    default: 'fix/sync/'
+  mergeable_retry_count:
+    description: 'Number of retries for waiting on GitHub to calculate mergeable status'
+    required: false
+    default: '5'
+  mergeable_retry_interval:
+    description: 'Interval in seconds between retries'
+    required: false
+    default: '10'
+
+outputs:
+  result:
+    description: 'Result of the merge operation (merged, skipped, failed)'
+  merge_method:
+    description: 'Merge method used (squash or merge)'
+
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
