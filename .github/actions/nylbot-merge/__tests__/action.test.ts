@@ -7,9 +7,10 @@
  */
 
 import { describe, it, expect, vi, type MockedFunction } from 'vitest';
-import type { ActionConfig, EventContext, Octokit } from './types';
-import { TWEMOJI } from './constants';
-import { executeAction, buildSummaryMarkdown } from './action';
+
+import { executeAction, buildSummaryMarkdown } from '../src/action.js';
+import { TWEMOJI } from '../src/constants.js';
+import type { ActionConfig, EventContext, Octokit } from '../src/types.js';
 
 // =============================================================================
 // Test Utilities
@@ -105,11 +106,37 @@ function createEventContext(overrides: Partial<EventContext> = {}): EventContext
     authorAssociation: 'MEMBER',
     serverUrl: 'https://github.com',
     runId: 12345,
+    eventName: 'issue_comment',
+    isPullRequest: true,
     ...overrides,
   };
 }
 
 describe('executeAction', () => {
+  describe('event type validation', () => {
+    it('skips processing for non-issue_comment events', async () => {
+      const octokit = createMockOctokit();
+      const context = createEventContext({ eventName: 'push' });
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(result.status).toBe('skipped');
+      expect(result.message).toContain('issue_comment');
+    });
+
+    it('skips processing for issue comments (not PR comments)', async () => {
+      const octokit = createMockOctokit();
+      const context = createEventContext({ isPullRequest: false });
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(result.status).toBe('skipped');
+      expect(result.message).toContain('not on a PR');
+    });
+  });
+
   describe('command and user validation', () => {
     it('skips processing for bot comments', async () => {
       const octokit = createMockOctokit();
@@ -1257,14 +1284,17 @@ describe('executeAction', () => {
       // Verify Co-authored-by appears in the correct position (after commit list, before additional messages)
       const parts = commitMessage.split('\n\n');
       expect(parts.length).toBeGreaterThanOrEqual(3);
-      expect(parts[1]).toContain('Co-authored-by:');
+      expect(parts.at(1)).toContain('Co-authored-by:');
 
       // Verify order is by commit order (Bob first, then Alice), not alphabetical
-      const coAuthorSection = parts[1];
-      const bobIndex = coAuthorSection.indexOf('Co-authored-by: Bob Developer');
-      const aliceIndex = coAuthorSection.indexOf('Co-authored-by: Alice Contributor');
-      expect(bobIndex).toBeLessThan(aliceIndex); // Bob should appear before Alice (commit order)
-      expect(parts[parts.length - 1]).toContain('Merged-by: nylbot-merge');
+      const coAuthorSection = parts.at(1);
+      expect(coAuthorSection).toBeDefined();
+      if (coAuthorSection) {
+        const bobIndex = coAuthorSection.indexOf('Co-authored-by: Bob Developer');
+        const aliceIndex = coAuthorSection.indexOf('Co-authored-by: Alice Contributor');
+        expect(bobIndex).toBeLessThan(aliceIndex); // Bob should appear before Alice (commit order)
+      }
+      expect(parts.at(-1)).toContain('Merged-by: nylbot-merge');
     });
   });
 });

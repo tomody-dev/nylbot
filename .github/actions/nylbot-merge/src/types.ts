@@ -5,7 +5,7 @@
  * used throughout the nylbot-merge action.
  */
 
-import type { GitHub } from '@actions/github/lib/utils';
+import type { GitHub } from '@actions/github/lib/utils.js';
 import type { RestEndpointMethodTypes } from '@octokit/plugin-rest-endpoint-methods';
 
 /**
@@ -49,6 +49,10 @@ export interface EventContext {
   serverUrl: string;
   /** Workflow run ID */
   runId: number;
+  /** GitHub event name (e.g., 'issue_comment') */
+  eventName: string;
+  /** Whether this is a PR comment (not an issue comment) */
+  isPullRequest: boolean;
 }
 
 /**

@@ -5,24 +5,11 @@
  * 1. executeAction() - The main orchestration function for merge operations
  * 2. buildSummaryMarkdown() - Helper to build summary markdown
  *
- * This is separated from main.ts which contains untestable GitHub Actions runtime code.
+ * This is separated from main.ts which contains GitHub Actions runtime integration code.
  */
 
 import * as core from '@actions/core';
-import type { ActionConfig, EventContext, ActionResult, CheckResult, Octokit } from './types';
-import {
-  isBot,
-  isCommand,
-  parseCommand,
-  hasValidAuthorAssociation,
-  hasValidPermission,
-  validatePRState,
-  determineMergeMethod,
-  getMergeableStateDescription,
-  buildCheckResultsMarkdown,
-  isConventionalCommitTitle,
-  waitBeforeRetryMs,
-} from './validation';
+
 import {
   addReaction,
   postComment,
@@ -33,7 +20,20 @@ import {
   countUnresolvedThreads,
   mergePullRequest,
   fetchPullRequestCommits,
-} from './github-api';
+} from './github-api.js';
+import type { ActionConfig, EventContext, ActionResult, CheckResult, Octokit } from './types.js';
+import {
+  isBot,
+  parseCommand,
+  hasValidAuthorAssociation,
+  hasValidPermission,
+  validatePRState,
+  determineMergeMethod,
+  getMergeableStateDescription,
+  buildCheckResultsMarkdown,
+  isConventionalCommitTitle,
+  waitBeforeRetryMs,
+} from './validation.js';
 
 /**
  * Main function that orchestrates the nylbot-merge operation.
@@ -56,29 +56,48 @@ export async function executeAction(
   context: EventContext,
   config: ActionConfig,
 ): Promise<ActionResult> {
-  const { owner, repo, prNumber, commentId, commentBody, actor, userType, authorAssociation } = context;
+  const {
+    owner,
+    repo,
+    prNumber,
+    commentId,
+    commentBody,
+    actor,
+    userType,
+    authorAssociation,
+    eventName,
+    isPullRequest,
+  } = context;
 
   // -------------------------------------------------------------------------
-  // Step 1: Validate command and user
+  // Step 1: Validate event type and context
   // -------------------------------------------------------------------------
+
+  // Validate event type - this action only works with issue_comment events
+  if (eventName !== 'issue_comment') {
+    return { status: 'skipped', message: 'This action only runs on issue_comment events' };
+  }
+
+  // Check if this is a PR comment (not an issue comment)
+  if (!isPullRequest) {
+    return { status: 'skipped', message: 'Comment is not on a PR, skipping' };
+  }
 
   // Skip if bot
   if (isBot(userType)) {
     return { status: 'skipped', message: 'Comment is from a bot' };
   }
 
-  // Check if this is the merge command
-  if (!isCommand(commentBody)) {
-    return { status: 'skipped', message: 'Command not matched' };
-  }
-
-  // Parse merge options from the command
+  // Parse and validate the merge command
+  // Note: This replaces the previous isCommand() check to avoid parsing twice
+  // parseCommand() returns null if the command format is invalid
   const mergeOptions = parseCommand(commentBody);
   if (!mergeOptions) {
     return { status: 'skipped', message: 'Command not matched' };
   }
 
   // Add eyes reaction for immediate feedback
+  // This happens as soon as we know it's a valid merge command
   await addReaction(octokit, owner, repo, commentId, 'eyes');
 
   // Check author association
@@ -107,7 +126,7 @@ export async function executeAction(
   }
 
   // -------------------------------------------------------------------------
-  // Step 2: Fetch and validate PR data
+  // Step 2: Validate user permissions
   // -------------------------------------------------------------------------
 
   let prData = await fetchPullRequestData(octokit, owner, repo, prNumber);
@@ -132,7 +151,7 @@ export async function executeAction(
   }
 
   // -------------------------------------------------------------------------
-  // Step 3: Run all validation checks
+  // Step 3: Fetch and validate PR data
   // -------------------------------------------------------------------------
 
   // PR state checks (open, unlocked, ready)
@@ -143,7 +162,7 @@ export async function executeAction(
   const threadsCheck: CheckResult = {
     name: 'All review conversations are resolved',
     passed: unresolvedCount === 0,
-    details: unresolvedCount > 0 ? `${unresolvedCount} unresolved` : undefined,
+    ...(unresolvedCount > 0 && { details: `${unresolvedCount} unresolved` }),
   };
 
   // Approval check - fetch and validate reviews
@@ -201,9 +220,9 @@ export async function executeAction(
   const approvalCheck: CheckResult = {
     name: 'At least one valid approval from another user',
     passed: approvalCheckPassed,
-    details: approvalDetails,
+    ...(approvalDetails !== undefined && { details: approvalDetails }),
     // Mark as optional when override flag is used, so it shows warning instead of failure
-    optional: approvalOverridden,
+    ...(approvalOverridden && { optional: true }),
   };
 
   // Merge conflicts check (based on mergeable_state)
@@ -211,7 +230,7 @@ export async function executeAction(
   const conflictsCheck: CheckResult = {
     name: 'No merge conflicts',
     passed: noConflicts,
-    details: !noConflicts ? getMergeableStateDescription(prData.mergeableState) : undefined,
+    ...(!noConflicts && { details: getMergeableStateDescription(prData.mergeableState) }),
   };
 
   // Optional: Conventional Commits check for PR title
@@ -219,7 +238,7 @@ export async function executeAction(
   const conventionalCommitsCheck: CheckResult = {
     name: 'PR title follows [Conventional Commits](https://www.conventionalcommits.org/)',
     passed: isConventionalTitle,
-    details: !isConventionalTitle ? 'title does not follow conventional format' : undefined,
+    ...(!isConventionalTitle && { details: 'title does not follow conventional format' }),
     optional: true,
   };
 

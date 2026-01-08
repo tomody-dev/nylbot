@@ -6,7 +6,6 @@
  * These functions are easily testable and have no side effects.
  */
 
-import type { ActionConfig, PullRequestData, CheckResult, MergeMethodResult, MergeOptions } from './types';
 import {
   COMMAND_REGEX,
   VALID_FLAGS,
@@ -14,7 +13,8 @@ import {
   VALID_AUTHOR_ASSOCIATIONS,
   VALID_PERMISSIONS,
   CONVENTIONAL_COMMIT_REGEX,
-} from './constants';
+} from './constants.js';
+import type { ActionConfig, PullRequestData, CheckResult, MergeMethodResult, MergeOptions } from './types.js';
 
 /**
  * Checks if a PR title follows the Conventional Commits format.
@@ -47,7 +47,9 @@ export function isConventionalCommitTitle(title: string): boolean {
  */
 export function parseCommand(commentBody: string): MergeOptions | null {
   const match = COMMAND_REGEX.exec(commentBody);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
 
   // Parse and validate flags
   const flagsStr = match[1]?.trim() ?? '';
@@ -192,7 +194,7 @@ export function validatePRState(prData: PullRequestData): CheckResult[] {
   checks.push({
     name: 'PR is ready for review',
     passed: allPassed,
-    details: failureReasons.length > 0 ? failureReasons.join(', ') : undefined,
+    ...(failureReasons.length > 0 && { details: failureReasons.join(', ') }),
   });
 
   return checks;

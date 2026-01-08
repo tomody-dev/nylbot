@@ -5,8 +5,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { ActionConfig, PullRequestData, CheckResult } from './types';
-import { TWEMOJI } from './constants';
+
+import { TWEMOJI } from '../src/constants.js';
+import type { ActionConfig, PullRequestData, CheckResult } from '../src/types.js';
 import {
   isCommand,
   parseCommand,
@@ -19,7 +20,7 @@ import {
   buildCheckResultsMarkdown,
   isConventionalCommitTitle,
   waitBeforeRetryMs,
-} from './validation';
+} from '../src/validation.js';
 
 // =============================================================================
 // Test Utilities
@@ -312,9 +313,9 @@ describe('validatePRState', () => {
       const checks = validatePRState(prData);
 
       expect(checks).toHaveLength(1);
-      expect(checks[0].name).toBe('PR is ready for review');
-      expect(checks[0].passed).toBe(true);
-      expect(checks[0].details).toBeUndefined();
+      expect(checks[0]?.name).toBe('PR is ready for review');
+      expect(checks[0]?.passed).toBe(true);
+      expect(checks[0]?.details).toBeUndefined();
     });
   });
 
@@ -325,9 +326,10 @@ describe('validatePRState', () => {
 
       expect(checks).toHaveLength(1);
       const check = checks[0];
-      expect(check.name).toBe('PR is ready for review');
-      expect(check.passed).toBe(false);
-      expect(check.details).toBe('currently closed');
+      expect(check).toBeDefined();
+      expect(check?.name).toBe('PR is ready for review');
+      expect(check?.passed).toBe(false);
+      expect(check?.details).toBe('currently closed');
     });
 
     it('fails check when PR is locked', () => {
@@ -336,9 +338,10 @@ describe('validatePRState', () => {
 
       expect(checks).toHaveLength(1);
       const check = checks[0];
-      expect(check.name).toBe('PR is ready for review');
-      expect(check.passed).toBe(false);
-      expect(check.details).toBe('currently locked');
+      expect(check).toBeDefined();
+      expect(check?.name).toBe('PR is ready for review');
+      expect(check?.passed).toBe(false);
+      expect(check?.details).toBe('currently locked');
     });
 
     it('fails check when PR is a draft', () => {
@@ -347,9 +350,10 @@ describe('validatePRState', () => {
 
       expect(checks).toHaveLength(1);
       const check = checks[0];
-      expect(check.name).toBe('PR is ready for review');
-      expect(check.passed).toBe(false);
-      expect(check.details).toBe('currently a draft');
+      expect(check).toBeDefined();
+      expect(check?.name).toBe('PR is ready for review');
+      expect(check?.passed).toBe(false);
+      expect(check?.details).toBe('currently a draft');
     });
 
     it('fails check with multiple reasons when PR has multiple issues', () => {
@@ -358,9 +362,10 @@ describe('validatePRState', () => {
 
       expect(checks).toHaveLength(1);
       const check = checks[0];
-      expect(check.name).toBe('PR is ready for review');
-      expect(check.passed).toBe(false);
-      expect(check.details).toBe('currently closed, currently locked');
+      expect(check).toBeDefined();
+      expect(check?.name).toBe('PR is ready for review');
+      expect(check?.passed).toBe(false);
+      expect(check?.details).toBe('currently closed, currently locked');
     });
 
     it('fails check with all three reasons when all conditions fail', () => {
@@ -369,9 +374,10 @@ describe('validatePRState', () => {
 
       expect(checks).toHaveLength(1);
       const check = checks[0];
-      expect(check.name).toBe('PR is ready for review');
-      expect(check.passed).toBe(false);
-      expect(check.details).toBe('currently closed, currently locked, currently a draft');
+      expect(check).toBeDefined();
+      expect(check?.name).toBe('PR is ready for review');
+      expect(check?.passed).toBe(false);
+      expect(check?.details).toBe('currently closed, currently locked, currently a draft');
     });
   });
 });
