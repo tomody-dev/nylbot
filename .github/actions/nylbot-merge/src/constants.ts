@@ -18,19 +18,6 @@ export const COMMAND_REGEX = /^\s*\/nylbot\s+merge(?:\s+(.*))?\s*$/;
 export const VALID_FLAGS = ['--override-approval-requirement'] as const;
 
 /**
- * Twemoji images for cross-browser emoji compatibility.
- * https://github.com/twitter/twemoji (CC-BY 4.0 licensed)
- */
-export const TWEMOJI = {
-  CHECK:
-    '<img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/2705.svg" width="20" height="20" alt="OK">',
-  CROSS:
-    '<img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/274c.svg" width="20" height="20" alt="NG">',
-  WARNING:
-    '<img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/26a0.svg" width="20" height="20" alt="Warning">',
-} as const;
-
-/**
  * Valid author associations that can use the /nylbot merge command.
  * Why: Only trusted users with write access should be able to trigger merges.
  * OWNER/MEMBER have org-level trust, COLLABORATOR has explicit repo access.

@@ -1,7 +1,11 @@
 /**
- * constants.test.ts - Unit tests for constants
+ * constants.test.ts - Tests for constants module
  *
- * Tests validate the constants and regex patterns used throughout the action.
+ * Tests validate the constants, regex patterns, and configuration values
+ * used throughout the action, including:
+ * - COMMAND_REGEX: Matching /nylbot merge commands
+ * - CONVENTIONAL_COMMIT_REGEX: Validating commit message formats
+ * - CONVENTIONAL_COMMIT_TYPES: Allowed commit types
  */
 
 import { describe, it, expect } from 'vitest';
@@ -81,14 +85,14 @@ describe('COMMAND_REGEX', () => {
 
   it('should match basic command patterns and capture optional flags', () => {
     // Note: COMMAND_REGEX now captures optional flags after "merge"
-    // The actual flag validation is done in isCommand
+    // The actual flag validation is done in parseCommand
     const testCases = [
       { input: '/nylbot merge', expected: true },
       { input: '  /nylbot merge', expected: true },
       { input: '/nylbot merge  ', expected: true },
       { input: '/nylbot  merge', expected: true },
       { input: '/nylbot merge --override-approval-requirement', expected: true },
-      { input: '/nylbot merge now', expected: true }, // Regex matches, but isCommand rejects
+      { input: '/nylbot merge now', expected: true }, // Regex matches, but parseCommand rejects
       { input: 'run /nylbot merge', expected: false }, // Text before command
     ];
 

@@ -1,15 +1,20 @@
 /**
- * validation.test.ts - Unit tests for validation functions
+ * validation.test.ts - Tests for validation and business logic functions
  *
- * Tests cover all pure validation and business logic functions.
+ * Tests cover all pure validation and business logic functions from validation.ts.
+ * These functions have no side effects and are easily testable without mocks.
+ * Test coverage includes:
+ * - Command parsing and flag validation
+ * - Permission and authorization checks
+ * - PR state validation
+ * - Merge method determination
+ * - Conventional Commits format validation
  */
 
 import { describe, it, expect } from 'vitest';
 
-import { TWEMOJI } from '../src/constants.js';
 import type { ActionConfig, PullRequestData, CheckResult } from '../src/types.js';
 import {
-  isCommand,
   parseCommand,
   isBot,
   hasValidAuthorAssociation,
@@ -62,65 +67,6 @@ function createPRData(overrides: Partial<PullRequestData> = {}): PullRequestData
 }
 
 // =============================================================================
-// Tests for isCommand
-// =============================================================================
-
-describe('isCommand', () => {
-  describe('valid command patterns', () => {
-    it('matches exact "/nylbot merge" command', () => {
-      expect(isCommand('/nylbot merge')).toBe(true);
-    });
-
-    it('matches with leading whitespace (space/tab/newline)', () => {
-      expect(isCommand('  /nylbot merge')).toBe(true);
-      expect(isCommand('\t/nylbot merge')).toBe(true);
-      expect(isCommand('\n/nylbot merge')).toBe(true);
-    });
-
-    it('matches with trailing whitespace (space/tab/newline)', () => {
-      expect(isCommand('/nylbot merge  ')).toBe(true);
-      expect(isCommand('/nylbot merge\t')).toBe(true);
-      expect(isCommand('/nylbot merge\n')).toBe(true);
-    });
-
-    it('matches with multiple spaces between words', () => {
-      expect(isCommand('/nylbot  merge')).toBe(true);
-      expect(isCommand('/nylbot   merge')).toBe(true);
-      expect(isCommand('/nylbot\tmerge')).toBe(true);
-    });
-
-    it('matches with --override-approval-requirement flag', () => {
-      expect(isCommand('/nylbot merge --override-approval-requirement')).toBe(true);
-      expect(isCommand('  /nylbot merge --override-approval-requirement  ')).toBe(true);
-    });
-  });
-
-  describe('invalid command patterns', () => {
-    it('rejects command with unknown arguments or flags', () => {
-      expect(isCommand('/nylbot merge now')).toBe(false);
-      expect(isCommand('/nylbot merge --force')).toBe(false);
-      expect(isCommand('/nylbot merge --unknown-flag')).toBe(false);
-    });
-
-    it('rejects partial or malformed commands', () => {
-      expect(isCommand('/nylbot')).toBe(false);
-      expect(isCommand('/nylbot merg')).toBe(false);
-      expect(isCommand('nylbot merge')).toBe(false);
-    });
-
-    it('rejects when command is embedded in other text', () => {
-      expect(isCommand('Please /nylbot merge this')).toBe(false);
-      expect(isCommand('Run /nylbot merge')).toBe(false);
-    });
-
-    it('is case-sensitive (uppercase rejected)', () => {
-      expect(isCommand('/NYLBOT MERGE')).toBe(false);
-      expect(isCommand('/Nylbot Merge')).toBe(false);
-    });
-  });
-});
-
-// =============================================================================
 // Tests for parseCommand
 // =============================================================================
 
@@ -139,9 +85,27 @@ describe('parseCommand', () => {
     });
 
     it('parses command with flag and extra whitespace', () => {
-      const result = parseCommand('  /nylbot merge   --override-approval-requirement  ');
+      const result = parseCommand('   /nylbot   merge   --override-approval-requirement   ');
       expect(result).not.toBeNull();
       expect(result?.overrideApprovalRequirement).toBe(true);
+    });
+
+    it('matches with leading whitespace (space/tab/newline)', () => {
+      expect(parseCommand('  /nylbot merge')).not.toBeNull();
+      expect(parseCommand('\t/nylbot merge')).not.toBeNull();
+      expect(parseCommand('\n/nylbot merge')).not.toBeNull();
+    });
+
+    it('matches with trailing whitespace (space/tab/newline)', () => {
+      expect(parseCommand('/nylbot merge  ')).not.toBeNull();
+      expect(parseCommand('/nylbot merge\t')).not.toBeNull();
+      expect(parseCommand('/nylbot merge\n')).not.toBeNull();
+    });
+
+    it('matches with multiple spaces between words', () => {
+      expect(parseCommand('/nylbot  merge')).not.toBeNull();
+      expect(parseCommand('/nylbot   merge')).not.toBeNull();
+      expect(parseCommand('/nylbot\tmerge')).not.toBeNull();
     });
   });
 
@@ -150,13 +114,27 @@ describe('parseCommand', () => {
       expect(parseCommand('hello world')).toBeNull();
     });
 
-    it('returns null for command with unknown flags', () => {
+    it('returns null for command with unknown flags or arguments', () => {
       expect(parseCommand('/nylbot merge --unknown-flag')).toBeNull();
+      expect(parseCommand('/nylbot merge now')).toBeNull();
+      expect(parseCommand('/nylbot merge --force')).toBeNull();
     });
 
-    it('returns null for malformed commands', () => {
+    it('returns null for partial or malformed commands', () => {
       expect(parseCommand('/nylbot')).toBeNull();
+      expect(parseCommand('/nylbot merg')).toBeNull();
       expect(parseCommand('nylbot merge')).toBeNull();
+    });
+
+    it('returns null when command is embedded in other text', () => {
+      expect(parseCommand('Please /nylbot merge this')).toBeNull();
+      expect(parseCommand('run /nylbot merge')).toBeNull();
+      expect(parseCommand('Run /nylbot merge')).toBeNull();
+    });
+
+    it('is case-sensitive (uppercase rejected)', () => {
+      expect(parseCommand('/NYLBOT MERGE')).toBeNull();
+      expect(parseCommand('/Nylbot Merge')).toBeNull();
     });
   });
 });
@@ -429,7 +407,7 @@ describe('buildCheckResultsMarkdown', () => {
     const checks: CheckResult[] = [{ name: 'Test check', passed: true }];
     const markdown = buildCheckResultsMarkdown(checks);
 
-    expect(markdown).toContain(TWEMOJI.CHECK);
+    expect(markdown).toContain('✅');
     expect(markdown).toContain('Test check');
   });
 
@@ -437,7 +415,7 @@ describe('buildCheckResultsMarkdown', () => {
     const checks: CheckResult[] = [{ name: 'Test check', passed: false, details: 'reason' }];
     const markdown = buildCheckResultsMarkdown(checks);
 
-    expect(markdown).toContain(TWEMOJI.CROSS);
+    expect(markdown).toContain('❌');
     expect(markdown).toContain('Test check');
     expect(markdown).toContain('(reason)');
   });
@@ -460,7 +438,7 @@ describe('buildCheckResultsMarkdown', () => {
     const checks: CheckResult[] = [{ name: 'Optional check', passed: false, details: 'not required', optional: true }];
     const markdown = buildCheckResultsMarkdown(checks);
 
-    expect(markdown).toContain(TWEMOJI.WARNING);
+    expect(markdown).toContain('⚠️');
     expect(markdown).toContain('Optional check');
     expect(markdown).toContain('(not required)');
   });
@@ -469,7 +447,7 @@ describe('buildCheckResultsMarkdown', () => {
     const checks: CheckResult[] = [{ name: 'Optional check', passed: true, optional: true }];
     const markdown = buildCheckResultsMarkdown(checks);
 
-    expect(markdown).toContain(TWEMOJI.CHECK);
+    expect(markdown).toContain('✅');
     expect(markdown).toContain('Optional check');
   });
 
@@ -484,11 +462,11 @@ describe('buildCheckResultsMarkdown', () => {
 
     expect(markdown.split('\n')).toHaveLength(4);
     // Required passing - check mark
-    expect(markdown).toContain(TWEMOJI.CHECK);
+    expect(markdown).toContain('✅');
     // Required failing - cross
-    expect(markdown).toContain(TWEMOJI.CROSS);
+    expect(markdown).toContain('❌');
     // Optional failing - warning
-    expect(markdown).toContain(TWEMOJI.WARNING);
+    expect(markdown).toContain('⚠️');
   });
 });
 

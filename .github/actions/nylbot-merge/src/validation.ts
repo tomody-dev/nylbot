@@ -9,7 +9,6 @@
 import {
   COMMAND_REGEX,
   VALID_FLAGS,
-  TWEMOJI,
   VALID_AUTHOR_ASSOCIATIONS,
   VALID_PERMISSIONS,
   CONVENTIONAL_COMMIT_REGEX,
@@ -64,23 +63,6 @@ export function parseCommand(commentBody: string): MergeOptions | null {
   return {
     overrideApprovalRequirement: flags.includes('--override-approval-requirement'),
   };
-}
-
-/**
- * Checks if a comment matches the `/nylbot merge` command pattern.
- * Now also accepts optional flags like `--override-approval-requirement`.
- *
- * @param commentBody - The body of the comment to check
- * @returns true if the comment is the merge command
- *
- * @example
- * isCommand('/nylbot merge')     // true
- * isCommand('  /nylbot merge  ') // true
- * isCommand('/nylbot merge --override-approval-requirement') // true
- * isCommand('/nylbot merge now') // false (invalid flag)
- */
-export function isCommand(commentBody: string): boolean {
-  return parseCommand(commentBody) !== null;
 }
 
 /**
@@ -228,14 +210,7 @@ export function getMergeableStateDescription(state: string): string {
 export function buildCheckResultsMarkdown(checks: CheckResult[]): string {
   return checks
     .map((check) => {
-      let icon: string;
-      if (check.passed) {
-        icon = TWEMOJI.CHECK;
-      } else if (check.optional) {
-        icon = TWEMOJI.WARNING;
-      } else {
-        icon = TWEMOJI.CROSS;
-      }
+      const icon = check.passed ? '✅' : check.optional ? '⚠️' : '❌';
       const detail = check.details ? ` (${check.details})` : '';
       return `- ${icon} ${check.name}${detail}`;
     })
