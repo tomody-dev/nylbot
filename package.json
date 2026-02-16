@@ -1,16 +1,5 @@
 {
-  "name": "nylbot-merge-action",
-  "description": "GitHub Action for automated PR merging with validation checks",
-  "version": "1.0.0",
   "type": "module",
-  "keywords": [
-    "auto-merge",
-    "automation",
-    "github-action",
-    "merge",
-    "pull-request",
-    "validation"
-  ],
   "exports": {
     ".": "./dist/merge.js"
   },
