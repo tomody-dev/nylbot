@@ -6,11 +6,20 @@
  */
 
 /**
- * Command regex for matching `/nylbot merge` comments.
- * Captures optional flags after the merge command.
- * Uses simple regex pattern compatible with JavaScript.
+ * Regex to detect a bot-style command at the start of the comment body (e.g. /nylbot, /xybot).
+ * Only space and tab are allowed before the trigger; leading newlines are not accepted.
+ * Used to add :eyes: reaction first and to decide whether to post an invalid-command comment.
+ * Pattern: optional space/tab, slash, 2–5 characters, then "bot".
  */
-export const COMMAND_REGEX = /^\s*\/nylbot\s+merge(?:\s+(.*))?\s*$/;
+export const BOT_TRIGGER_REGEX = /^[ \t]*\/.{2,5}bot/;
+
+/**
+ * Command regex for matching `/nylbot merge` at the start of the comment body.
+ * Only space and tab are allowed before the command and between tokens; leading or trailing newlines are not accepted.
+ * Captures optional flags after the merge command (same line only).
+ * Pattern: optional space/tab, "/nylbot", one or more space/tab, "merge", optional space/tab + rest of line.
+ */
+export const COMMAND_REGEX = /^[ \t]*\/nylbot[ \t]+merge(?:[ \t]+([^\n]*))?[ \t]*$/;
 
 /**
  * List of valid command flags for `/nylbot merge`.
@@ -22,6 +31,9 @@ export const VALID_FLAGS = ['--override-approval-requirement'] as const;
  * Why: Only trusted users with write access should be able to trigger merges.
  * OWNER/MEMBER have org-level trust, COLLABORATOR has explicit repo access.
  * CONTRIBUTOR and others may have submitted PRs but lack merge authority.
+ *
+ * Note: Command actors must pass BOTH author association and permission checks.
+ * Reviewers are validated using permission level only (see VALID_PERMISSIONS).
  */
 export const VALID_AUTHOR_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'] as const;
 
@@ -29,6 +41,10 @@ export const VALID_AUTHOR_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'] as 
  * Valid permission levels that can use the /nylbot merge command.
  * Why: Maps to GitHub's permission model - admin/maintain/write can merge PRs.
  * Read-only users should not be able to trigger merges even if they can comment.
+ *
+ * Note: This check is used for both command actors (with author association check)
+ * and reviewers (permission-only check, as GitHub App tokens may return 'NONE'
+ * for author_association even for valid collaborators).
  */
 export const VALID_PERMISSIONS = ['admin', 'maintain', 'write'] as const;
 

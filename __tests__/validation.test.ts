@@ -17,6 +17,7 @@ import type { ActionConfig, PullRequestData, CheckResult } from '../src/types.js
 import {
   parseCommand,
   isBot,
+  hasBotMention,
   hasValidAuthorAssociation,
   hasValidPermission,
   determineMergeMethod,
@@ -90,16 +91,20 @@ describe('parseCommand', () => {
       expect(result?.overrideApprovalRequirement).toBe(true);
     });
 
-    it('matches with leading whitespace (space/tab/newline)', () => {
+    it('matches with leading space or tab only (no newline)', () => {
       expect(parseCommand('  /nylbot merge')).not.toBeNull();
       expect(parseCommand('\t/nylbot merge')).not.toBeNull();
-      expect(parseCommand('\n/nylbot merge')).not.toBeNull();
     });
 
-    it('matches with trailing whitespace (space/tab/newline)', () => {
+    it('matches with trailing space or tab only (no newline)', () => {
       expect(parseCommand('/nylbot merge  ')).not.toBeNull();
       expect(parseCommand('/nylbot merge\t')).not.toBeNull();
-      expect(parseCommand('/nylbot merge\n')).not.toBeNull();
+    });
+
+    it('returns null when command is after leading newline or has trailing newline', () => {
+      expect(parseCommand('\n/nylbot merge')).toBeNull();
+      expect(parseCommand('/nylbot merge\n')).toBeNull();
+      expect(parseCommand('  \n/nylbot merge')).toBeNull();
     });
 
     it('matches with multiple spaces between words', () => {
@@ -156,6 +161,70 @@ describe('isBot', () => {
     expect(isBot('Organization')).toBe(false);
     expect(isBot('Mannequin')).toBe(false);
     expect(isBot('')).toBe(false);
+  });
+});
+
+// =============================================================================
+// Tests for hasBotMention
+// =============================================================================
+
+describe('hasBotMention', () => {
+  describe('valid bot trigger patterns (start of comment body)', () => {
+    it('matches /nylbot at start of comment with or without command', () => {
+      expect(hasBotMention('/nylbot')).toBe(true);
+      expect(hasBotMention('/nylbot merge')).toBe(true);
+      expect(hasBotMention('  /nylbot merge')).toBe(true);
+    });
+
+    it('matches other bot names (2–5 chars before "bot")', () => {
+      expect(hasBotMention('/xybot')).toBe(true);
+      expect(hasBotMention('/longbot merge')).toBe(true);
+      expect(hasBotMention('/mybot help')).toBe(true);
+      expect(hasBotMention('/aibot')).toBe(true);
+      expect(hasBotMention('/abcdebot test')).toBe(true);
+    });
+
+    it('matches with leading space or tab only (no newlines)', () => {
+      expect(hasBotMention('\t/nylbot')).toBe(true);
+      expect(hasBotMention('  /nylbot merge')).toBe(true);
+    });
+
+    it('matches trigger without space after "bot" (pattern is comment-start only)', () => {
+      expect(hasBotMention('/nylbot')).toBe(true);
+      expect(hasBotMention('/nylbotmerge')).toBe(true);
+    });
+  });
+
+  describe('invalid bot trigger patterns', () => {
+    it('rejects too short prefix (less than 2 chars before "bot")', () => {
+      expect(hasBotMention('/bot')).toBe(false);
+      expect(hasBotMention('/xbot test')).toBe(false);
+    });
+
+    it('rejects too long prefix (more than 5 chars before "bot")', () => {
+      expect(hasBotMention('/longnamebot')).toBe(false);
+      expect(hasBotMention('/toolongbot command')).toBe(false);
+    });
+
+    it('rejects bot name without slash', () => {
+      expect(hasBotMention('nylbot merge')).toBe(false);
+      expect(hasBotMention('mybot command')).toBe(false);
+    });
+
+    it('rejects text without bot trigger at start of comment', () => {
+      expect(hasBotMention('Hello world')).toBe(false);
+      expect(hasBotMention('some random text')).toBe(false);
+    });
+
+    it('rejects when trigger is not at start of comment body', () => {
+      expect(hasBotMention('run /nylbot merge')).toBe(false);
+      expect(hasBotMention('prefix /nylbot')).toBe(false);
+    });
+
+    it('rejects when trigger is after a newline (only space/tab allowed before trigger)', () => {
+      expect(hasBotMention('\n/nylbot merge')).toBe(false);
+      expect(hasBotMention(' \n/nylbot')).toBe(false);
+    });
   });
 });
 
@@ -370,27 +439,31 @@ describe('getMergeableStateDescription', () => {
   });
 
   it('should return correct description for blocked state', () => {
-    expect(getMergeableStateDescription('blocked')).toContain('blocked');
+    expect(getMergeableStateDescription('blocked')).toBe('failing or missing required status checks');
   });
 
   it('should return correct description for unstable state', () => {
-    expect(getMergeableStateDescription('unstable')).toContain('failing status checks');
+    expect(getMergeableStateDescription('unstable')).toBe('optional status checks pending or failing');
   });
 
   it('should return correct description for behind state', () => {
-    expect(getMergeableStateDescription('behind')).toContain('behind');
+    expect(getMergeableStateDescription('behind')).toBe('head branch is behind base branch');
   });
 
   it('should return correct description for unknown state', () => {
-    expect(getMergeableStateDescription('unknown')).toContain('not yet computed');
+    expect(getMergeableStateDescription('unknown')).toBe('mergeability not yet computed; please retry');
   });
 
   it('should return correct description for has_hooks state', () => {
-    expect(getMergeableStateDescription('has_hooks')).toContain('hooks');
+    expect(getMergeableStateDescription('has_hooks')).toBe('repository has custom pre-receive hooks');
   });
 
   it('should return correct description for clean state', () => {
     expect(getMergeableStateDescription('clean')).toBe('ready to merge');
+  });
+
+  it('should return correct description for draft state', () => {
+    expect(getMergeableStateDescription('draft')).toBe('draft PR; not ready for review');
   });
 
   it('should return fallback for unknown states', () => {

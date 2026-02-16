@@ -52,6 +52,34 @@ function createEventContext(overrides: Partial<EventContext> = {}): EventContext
   };
 }
 
+/**
+ * Creates a mock PR with specific mergeable_state for testing non-clean states.
+ */
+function createPRWithMergeableState(
+  mergeableState: 'clean' | 'dirty' | 'unstable' | 'blocked' | 'behind' | 'unknown' | 'has_hooks' | 'draft',
+  mergeable = true,
+) {
+  return {
+    state: 'open',
+    locked: false,
+    draft: false,
+    merged: false,
+    mergeable,
+    mergeable_state: mergeableState,
+    head: {
+      sha: 'abc1234567890',
+      ref: 'feature/test',
+      repo: { fork: false, owner: { id: 1 } },
+    },
+    base: {
+      ref: 'develop',
+      repo: { owner: { id: 1 } },
+    },
+    user: { login: 'testuser' },
+    title: 'feat: test pull request',
+  };
+}
+
 describe('executeAction', () => {
   describe('event type validation', () => {
     it('skips processing for non-issue_comment events', async () => {
@@ -89,7 +117,7 @@ describe('executeAction', () => {
       expect(result.message).toContain('bot');
     });
 
-    it('skips processing for non-matching command', async () => {
+    it('skips processing for non-matching command (no bot trigger)', async () => {
       const octokit = createMockOctokit();
       const context = createEventContext({ commentBody: 'Hello world' });
       const config = createConfig();
@@ -97,7 +125,103 @@ describe('executeAction', () => {
       const result = await executeAction(octokit, context, config);
 
       expect(result.status).toBe('skipped');
-      expect(result.message).toContain('not matched');
+      expect(result.message).toBe('Command not matched');
+      expect(octokit.rest.reactions.createForIssueComment).not.toHaveBeenCalled();
+      expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+    });
+
+    it('does not react or comment for non-bot-mention text', async () => {
+      const octokit = createMockOctokit();
+      const context = createEventContext({ commentBody: 'Just a regular comment' });
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(octokit.rest.reactions.createForIssueComment).not.toHaveBeenCalled();
+      expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+      expect(result.status).toBe('skipped');
+      expect(result.message).toBe('Command not matched');
+    });
+
+    it('adds eyes reaction and posts invalid-command comment when bot trigger matches but command is invalid', async () => {
+      const octokit = createMockOctokit();
+      const context = createEventContext({
+        commentBody: '/nylbot merge now',
+        commentId: 999,
+        prNumber: 42,
+        serverUrl: 'https://github.com',
+      });
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(result.status).toBe('skipped');
+      expect(result.message).toBe('Command not recognized');
+      expect(octokit.rest.reactions.createForIssueComment).toHaveBeenCalledTimes(1);
+      expect(octokit.rest.reactions.createForIssueComment).toHaveBeenCalledWith({
+        owner: 'testowner',
+        repo: 'testrepo',
+        comment_id: 999,
+        content: 'eyes',
+      });
+      expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
+      const commentCalls = octokit.rest.issues.createComment.mock.calls;
+      const commentBody = (commentCalls[0]?.[0] as { body?: string } | undefined)?.body ?? '';
+      expect(commentBody).toContain('Unrecognized command');
+      expect(commentBody).toContain("I'm nylbot");
+      expect(commentBody).toContain("couldn't recognize");
+      expect(commentBody).toContain('https://github.com/testowner/testrepo/pull/42#issuecomment-999');
+    });
+
+    it('adds eyes reaction and posts unrecognized-command comment for invalid flags', async () => {
+      const octokit = createMockOctokit();
+      const context = createEventContext({
+        commentBody: '/nylbot merge --unknown-flag',
+        commentId: 456,
+        prNumber: 1,
+        serverUrl: 'https://github.com',
+      });
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(result.status).toBe('skipped');
+      expect(result.message).toBe('Command not recognized');
+      expect(octokit.rest.reactions.createForIssueComment).toHaveBeenCalledTimes(1);
+      expect(octokit.rest.reactions.createForIssueComment).toHaveBeenCalledWith({
+        owner: 'testowner',
+        repo: 'testrepo',
+        comment_id: 456,
+        content: 'eyes',
+      });
+      expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
+      const commentCalls = octokit.rest.issues.createComment.mock.calls;
+      const commentBody = (commentCalls[0]?.[0] as { body?: string } | undefined)?.body ?? '';
+      expect(commentBody).toContain('Unrecognized command');
+      expect(commentBody).toContain("I'm nylbot");
+      expect(commentBody).toContain("couldn't recognize");
+      expect(commentBody).toContain('https://github.com/testowner/testrepo/pull/1#issuecomment-456');
+    });
+
+    it('builds comment URL without double slash when serverUrl has trailing slash', async () => {
+      const octokit = createMockOctokit();
+      const context = createEventContext({
+        commentBody: '/nylbot merge --unknown-flag',
+        commentId: 100,
+        prNumber: 7,
+        serverUrl: 'https://github.enterprise.com/',
+      });
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(result.status).toBe('skipped');
+      expect(result.message).toBe('Command not recognized');
+      const commentCalls = octokit.rest.issues.createComment.mock.calls;
+      const commentBody = (commentCalls[0]?.[0] as { body?: string } | undefined)?.body ?? '';
+      expect(commentBody).toContain('Unrecognized command');
+      expect(commentBody).not.toContain('https://github.enterprise.com//');
+      expect(commentBody).toContain('https://github.enterprise.com/testowner/testrepo/pull/7#issuecomment-100');
     });
 
     it('fails for users without valid author association', async () => {
@@ -207,6 +331,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -237,6 +362,143 @@ describe('executeAction', () => {
 
       expect(result.status).toBe('failed');
       expect(result.message).toContain('checks failed');
+    });
+
+    it('skips reviews from users without valid permissions', async () => {
+      const octokit = createMockOctokit();
+
+      // Mock reviews from users
+      octokit.paginate.mockResolvedValue([
+        {
+          id: 1,
+          state: 'APPROVED',
+          commit_id: 'abc1234567890',
+          user: { login: 'contributor' },
+        },
+        {
+          id: 2,
+          state: 'APPROVED',
+          commit_id: 'abc1234567890',
+          user: { login: 'firsttimer' },
+        },
+        {
+          id: 3,
+          state: 'APPROVED',
+          commit_id: 'abc1234567890',
+          user: { login: 'nouser' },
+        },
+      ]);
+
+      // Mock permission checks - actor has write, but reviewers have insufficient permissions
+      octokit.rest.repos.getCollaboratorPermissionLevel.mockImplementation(async (params) => {
+        const username = params?.username;
+        // Actor has write permission to execute the command
+        if (username === 'testactor') {
+          return {
+            data: { permission: 'write' },
+          } as Awaited<ReturnType<typeof octokit.rest.repos.getCollaboratorPermissionLevel>>;
+        }
+        // All reviewers have insufficient permissions
+        return {
+          data: { permission: username === 'nouser' ? 'none' : 'read' },
+        } as Awaited<ReturnType<typeof octokit.rest.repos.getCollaboratorPermissionLevel>>;
+      });
+
+      const context = createEventContext();
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      // Should fail because no reviews have valid permissions
+      expect(result.status).toBe('failed');
+      expect(result.message).toContain('checks failed');
+    });
+
+    it('skips reviews from users without login (deleted accounts)', async () => {
+      const octokit = createMockOctokit();
+
+      // Mock review from a deleted user (no login)
+      octokit.paginate.mockResolvedValue([
+        {
+          id: 1,
+          state: 'APPROVED',
+          commit_id: 'abc1234567890',
+          user: null, // Deleted user
+        },
+        {
+          id: 2,
+          state: 'APPROVED',
+          commit_id: 'abc1234567890',
+          user: {}, // User without login
+        },
+      ]);
+
+      const context = createEventContext();
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      // Should fail because no valid reviews exist
+      expect(result.status).toBe('failed');
+      expect(result.message).toContain('checks failed');
+    });
+
+    it('accepts reviews with valid permissions and skips invalid ones', async () => {
+      const octokit = createMockOctokit();
+
+      // Mock mix of valid and invalid permissions
+      let paginateCalls = 0;
+      octokit.paginate.mockImplementation(async () => {
+        paginateCalls++;
+        if (paginateCalls === 1) {
+          // First call: approved reviews
+          return [
+            {
+              id: 1,
+              state: 'APPROVED',
+              commit_id: 'abc1234567890',
+              user: { login: 'contributor' },
+            },
+            {
+              id: 2,
+              state: 'APPROVED',
+              commit_id: 'abc1234567890',
+              user: { login: 'member' },
+            },
+            {
+              id: 3,
+              state: 'APPROVED',
+              commit_id: 'abc1234567890',
+              user: { login: 'collaborator' },
+            },
+          ];
+        } else {
+          // Second call: commits for squash merge
+          return [{ commit: { message: 'feat: add feature' } }];
+        }
+      });
+
+      // Mock permission checks - actor has write, contributor has 'read', others have valid permissions
+      octokit.rest.repos.getCollaboratorPermissionLevel.mockImplementation(async (params) => {
+        const username = params?.username;
+        const permissions: Record<string, string> = {
+          testactor: 'write', // Actor needs write permission
+          contributor: 'read', // Invalid - should be skipped
+          member: 'write', // Valid - should count
+          collaborator: 'admin', // Valid - should count
+        };
+        return {
+          data: { permission: permissions[username || ''] || 'none' },
+        } as Awaited<ReturnType<typeof octokit.rest.repos.getCollaboratorPermissionLevel>>;
+      });
+
+      const context = createEventContext();
+      const config = createConfig();
+
+      const result = await executeAction(octokit, context, config);
+
+      // Should succeed with 2 valid approvals (member and collaborator with write/admin permissions)
+      expect(result.status).toBe('merged');
     });
 
     it('Case A: fails when no approvals and no override flag, shows cross icon', async () => {
@@ -368,6 +630,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -425,6 +688,7 @@ describe('executeAction', () => {
           state: 'APPROVED',
           commit_id: 'oldcommit456', // Different from currenthead123
           user: { login: 'reviewer' },
+          author_association: 'MEMBER',
         },
       ]);
 
@@ -482,6 +746,7 @@ describe('executeAction', () => {
           state: 'APPROVED',
           commit_id: 'oldcommit456',
           user: { login: 'reviewer' },
+          author_association: 'MEMBER',
         },
       ]);
 
@@ -543,6 +808,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -582,6 +848,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -645,6 +912,7 @@ describe('executeAction', () => {
           state: 'APPROVED',
           commit_id: 'original123',
           user: { login: 'reviewer' },
+          author_association: 'MEMBER',
         },
       ]);
 
@@ -703,6 +971,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -760,6 +1029,7 @@ describe('executeAction', () => {
           state: 'APPROVED',
           commit_id: 'abc1234567890',
           user: { login: 'reviewer' },
+          author_association: 'MEMBER',
         },
       ]);
 
@@ -775,29 +1045,16 @@ describe('executeAction', () => {
       expect(result.message).toContain('Not mergeable');
     });
 
-    it('fails when PR has dirty mergeable state (conflicts)', async () => {
+    it.each([
+      { state: 'dirty', description: 'conflicts', mergeable: false },
+      { state: 'unstable', description: 'failing checks', mergeable: true },
+      { state: 'blocked', description: 'branch protection', mergeable: true },
+      { state: 'behind', description: 'needs update', mergeable: true },
+    ] as const)('fails when PR has $state mergeable state ($description)', async ({ state, mergeable }) => {
       const octokit = createMockOctokit();
 
       octokit.rest.pulls.get.mockResolvedValue({
-        data: {
-          state: 'open',
-          locked: false,
-          draft: false,
-          merged: false,
-          mergeable: false,
-          mergeable_state: 'dirty',
-          head: {
-            sha: 'abc1234567890',
-            ref: 'feature/test',
-            repo: { fork: false, owner: { id: 1 } },
-          },
-          base: {
-            ref: 'develop',
-            repo: { owner: { id: 1 } },
-          },
-          user: { login: 'testuser' },
-          title: 'feat: test pull request',
-        },
+        data: createPRWithMergeableState(state, mergeable),
       } as unknown as Awaited<ReturnType<typeof octokit.rest.pulls.get>>);
 
       // Mock valid approval
@@ -807,6 +1064,7 @@ describe('executeAction', () => {
           state: 'APPROVED',
           commit_id: 'abc1234567890',
           user: { login: 'reviewer' },
+          author_association: 'MEMBER',
         },
       ]);
 
@@ -816,6 +1074,7 @@ describe('executeAction', () => {
       const result = await executeAction(octokit, context, config);
 
       expect(result.status).toBe('failed');
+      expect(result.message).toContain('checks failed');
     });
 
     it('handles merge API failure', async () => {
@@ -832,6 +1091,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -898,6 +1158,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -953,6 +1214,7 @@ describe('executeAction', () => {
           state: 'APPROVED',
           commit_id: 'abc1234567890',
           user: { login: 'reviewer' },
+          author_association: 'MEMBER',
         },
       ]);
 
@@ -1015,6 +1277,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -1066,6 +1329,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -1107,6 +1371,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {
@@ -1172,6 +1437,7 @@ describe('executeAction', () => {
               state: 'APPROVED',
               commit_id: 'abc1234567890',
               user: { login: 'reviewer' },
+              author_association: 'MEMBER',
             },
           ];
         } else {

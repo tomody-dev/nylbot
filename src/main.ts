@@ -144,7 +144,7 @@ export async function run(deps: RunDependencies = createProductionDependencies()
 
     deps.core.setOutput('result', result.status);
     if (result.mergeMethod) {
-      deps.core.setOutput('merge-method', result.mergeMethod);
+      deps.core.setOutput('merge_method', result.mergeMethod);
     }
 
     const resultEmoji = {

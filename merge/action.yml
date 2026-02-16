@@ -24,14 +24,14 @@
 #           with:
 #             github-token: ${{ secrets.GITHUB_TOKEN }}
 #
-# LIMITATIONS:
-# - Fork PRs are NOT supported (GITHUB_TOKEN has limited permissions)
-# - Only organization owners, members, or collaborators with write access
-#   can use the `/nylbot merge` command
+# AUTHORIZATION:
+# - Users must have BOTH valid author association (OWNER/MEMBER/COLLABORATOR)
+#   AND write-level permissions (admin/maintain/write) to execute /nylbot merge
+# - See README.md "User Authorization" section for complete details
 #
-# THIRD-PARTY LICENSES:
-# - Twemoji graphics (https://github.com/twitter/twemoji) are used for emoji
-#   display compatibility. Licensed under CC-BY 4.0.
+# LIMITATIONS:
+# - Fork PRs are NOT supported (this action explicitly rejects fork PRs as a
+#   design decision; typical usage with passed GITHUB_TOKEN has restrictions)
 # =============================================================================
 
 name: 'nylbot-merge'
