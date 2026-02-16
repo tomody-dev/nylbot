@@ -81,7 +81,7 @@ jobs:
           app-id: ${{ vars.TMD_TOKEN_APP_ID }}
           private-key: ${{ secrets.TMD_TOKEN_APP_PRIVATE_KEY }}
 
-      - uses: peter-evans/create-pull-request@v7
+      - uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.app-token.outputs.token }}
           commit-message: 'ci(deps-nylbot-merge): upgrade dependencies'
