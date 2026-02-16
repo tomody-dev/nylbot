@@ -156,7 +156,7 @@ describe('main.ts', () => {
       expect(mockGetOctokit).toHaveBeenCalledWith('test-token');
       expect(executeActionSpy).toHaveBeenCalled();
       expect(mockCore.setOutput).toHaveBeenCalledWith('result', 'merged');
-      expect(mockCore.setOutput).toHaveBeenCalledWith('merge_method', 'squash');
+      expect(mockCore.setOutput).toHaveBeenCalledWith('merge-method', 'squash');
       expect(buildSummaryMarkdownSpy).toHaveBeenCalled();
       expect(mockCore.summary.addRaw).toHaveBeenCalledWith('# Test Summary');
       expect(mockCore.info).toHaveBeenCalledWith('nylbot-merge result: merged - Pull request successfully merged');
@@ -252,7 +252,7 @@ describe('main.ts', () => {
 
       // Assert
       expect(mockCore.setOutput).toHaveBeenCalledWith('result', 'skipped');
-      expect(mockCore.setOutput).not.toHaveBeenCalledWith('merge_method', expect.anything());
+      expect(mockCore.setOutput).not.toHaveBeenCalledWith('merge-method', expect.anything());
       expect(mockCore.info).toHaveBeenCalledWith('nylbot-merge result: skipped - Merge was skipped');
       expect(mockCore.setFailed).not.toHaveBeenCalled();
     });
