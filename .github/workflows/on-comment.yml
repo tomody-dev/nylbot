@@ -36,4 +36,4 @@ jobs:
 
       - uses: tomody-dev/nylbot/merge@v2
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
