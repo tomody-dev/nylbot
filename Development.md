@@ -3,7 +3,6 @@
 To work on the nylbot-merge action:
 
 ```bash
-cd .github/actions/nylbot-merge
 npm ci
 # Make your code changes...
 npm run all     # Run all fix, check, and package steps

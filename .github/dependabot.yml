@@ -8,11 +8,11 @@ updates:
       prefix: 'ci'
       include: 'scope'
   - package-ecosystem: 'npm'
-    directory: '/.github/actions/nylbot-merge'
+    directory: '/'
     schedule:
       interval: 'weekly'
     commit-message:
-      prefix: 'ci'
+      prefix: 'fix'
       include: 'scope'
     ignore:
       - dependency-name: '@types/node'

@@ -23,7 +23,7 @@ name: nylbot-merge Dependency Upgrade
 #
 # WORKFLOW BEHAVIOR:
 # 1. Checks out the repository
-# 2. Runs `npm run all:full-upgrade` in .github/actions/nylbot-merge directory
+# 2. Runs `npm run all:full-upgrade`
 # 3. Creates or updates a PR with dependency upgrades:
 #    - Branch name is unique per base branch (e.g., bot/nylbot-merge-deps/develop)
 #    - If no existing PR exists for this base branch, creates a new one
@@ -69,11 +69,10 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: '.github/actions/nylbot-merge/package-lock.json'
+          cache-dependency-path: 'package-lock.json'
 
       - name: Run dependency upgrade
         id: upgrade
-        working-directory: .github/actions/nylbot-merge
         run: |
           npm run all:full-upgrade
           echo "✅ Dependency upgrade completed successfully"

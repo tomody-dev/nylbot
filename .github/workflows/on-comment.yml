@@ -7,7 +7,7 @@ name: on-comment
 # actions with project-specific configuration.
 #
 # Currently supported commands:
-# - /nylbot merge - See .github/actions/nylbot-merge/action.yml for details
+# - /nylbot merge - See merge/action.yml for details
 #
 # CUSTOMIZATION:
 # - Modify the `with` inputs below to match your project's branching strategy
