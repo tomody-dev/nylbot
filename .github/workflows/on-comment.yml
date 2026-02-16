@@ -27,10 +27,6 @@ jobs:
     # Only run if this is a PR comment (not an issue)
     if: github.event.issue.pull_request
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
     steps:
       - uses: actions/create-github-app-token@v2
         id: app-token

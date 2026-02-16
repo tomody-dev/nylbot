@@ -57,9 +57,6 @@ jobs:
   upgrade-dependencies:
     name: Upgrade nylbot-merge Dependencies
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v6
 
@@ -84,8 +81,8 @@ jobs:
       - uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.app-token.outputs.token }}
-          commit-message: 'ci(deps-nylbot-merge): upgrade dependencies'
-          title: 'ci(deps-nylbot-merge): upgrade dependencies'
+          commit-message: 'fix(deps): upgrade dependencies'
+          title: 'fix(deps): upgrade dependencies'
           body: |
             ## Automated Dependency Upgrade
 
