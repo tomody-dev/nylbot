@@ -1,12 +1,10 @@
-name: on-comment
-
 # =============================================================================
 # on-comment - Project-Specific nylbot Commands Caller
 # =============================================================================
 # This is the project-specific caller workflow that invokes nylbot-related
 # actions with project-specific configuration.
 #
-# Currently supported commands:
+# Supported commands:
 # - /nylbot merge - See merge/action.yml for details
 #
 # CUSTOMIZATION:
@@ -26,7 +24,6 @@ concurrency:
 
 jobs:
   nylbot-merge:
-    name: nylbot-merge
     # Only run if this is a PR comment (not an issue)
     if: github.event.issue.pull_request
     runs-on: ubuntu-latest
@@ -35,7 +32,11 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - name: Run nylbot-merge action
-        uses: tomody-dev/nylbot/merge@v1
+      - uses: actions/create-github-app-token@v2
+        id: app-token
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          app-id: ${{ vars.TMD_TOKEN_APP_ID }}
+          private-key: ${{ secrets.TMD_TOKEN_APP_PRIVATE_KEY }}
+      - uses: tomody-dev/nylbot/merge@v1
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
