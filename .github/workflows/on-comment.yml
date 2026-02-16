@@ -37,6 +37,7 @@ jobs:
         with:
           app-id: ${{ vars.TMD_TOKEN_APP_ID }}
           private-key: ${{ secrets.TMD_TOKEN_APP_PRIVATE_KEY }}
+
       - uses: tomody-dev/nylbot/merge@v1
         with:
           github-token: ${{ steps.app-token.outputs.token }}
