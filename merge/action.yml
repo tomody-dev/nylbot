@@ -20,9 +20,11 @@
 #         pull-requests: write
 #         issues: write
 #       steps:
-#         - uses: tomody-dev/nylbot/merge@v1
-#           with:
-#             github-token: ${{ secrets.GITHUB_TOKEN }}
+#         - uses: tomody-dev/nylbot/merge@v2
+#           # with:
+#           #   release-branch-prefix: "release/"
+#           #   develop-branch: "develop"
+#           #   sync-branch-prefix: "fix/sync/"
 #
 # AUTHORIZATION:
 # - Users must have BOTH valid author association (OWNER/MEMBER/COLLABORATOR)
@@ -38,9 +40,9 @@ name: 'nylbot-merge'
 description: 'Automated PR merging with validation checks via /nylbot merge command'
 
 inputs:
-  github-token:
-    description: 'GitHub token for API authentication'
-    required: true
+  token:
+    description: 'OPTIONAL: GitHub token for API authentication'
+    default: ${{ github.token }}
   release-branch-prefix:
     description: 'OPTIONAL: Prefix for release branches (e.g., "release/")'
     required: false
@@ -66,7 +68,7 @@ outputs:
   result:
     description: 'Result of the merge operation (merged, skipped, failed, already_merged)'
   merge-method:
-    description: 'Merge method used (squash or merge)'
+    description: 'OPTIONAL: Merge method used (squash or merge)'
 
 runs:
   using: 'node24'
