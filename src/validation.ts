@@ -7,6 +7,7 @@
  */
 
 import {
+  BOT_TRIGGER_REGEX,
   COMMAND_REGEX,
   VALID_FLAGS,
   VALID_AUTHOR_ASSOCIATIONS,
@@ -31,7 +32,20 @@ export function isConventionalCommitTitle(title: string): boolean {
 }
 
 /**
+ * Checks if a comment contains a bot trigger pattern at the start of the comment body.
+ * Only leading space/tab is allowed before the trigger; leading newlines do not match.
+ * Pattern: optional space/tab, slash, 2–5 characters, then "bot".
+ *
+ * @param commentBody - The body of the comment to check
+ * @returns true if the comment matches the bot trigger pattern
+ */
+export function hasBotMention(commentBody: string): boolean {
+  return BOT_TRIGGER_REGEX.test(commentBody);
+}
+
+/**
  * Parses the `/nylbot merge` command and extracts options.
+ * The command must appear at the start of the comment body; only leading space/tab is allowed (no newlines).
  *
  * @param commentBody - The body of the comment containing the command
  * @returns MergeOptions with parsed flags, or null if not a valid command
@@ -185,18 +199,26 @@ export function validatePRState(prData: PullRequestData): CheckResult[] {
 /**
  * Generates a human-readable description for a mergeable state.
  *
+ * This tool supports making optional status checks effectively required in
+ * private free repos. On GitHub, mergeable_state may still allow merge when
+ * optional status checks are pending or failing (e.g. unstable, has_hooks);
+ * this tool considers only mergeable_state === 'clean' as mergeable. The
+ * descriptions below reflect this tool's policy and may differ from GitHub's
+ * default meaning for some states.
+ *
  * @param state - The mergeable_state from GitHub API
  * @returns Human-readable description
  */
 export function getMergeableStateDescription(state: string): string {
   const descriptions: Record<string, string> = {
     dirty: 'has unresolved conflicts',
-    blocked: 'blocked by status checks or branch protection',
-    unstable: 'has failing status checks',
-    behind: 'branch is behind base branch',
-    unknown: 'mergeability not yet computed, please retry',
-    has_hooks: 'blocked by external hooks',
+    unknown: 'mergeability not yet computed; please retry',
+    blocked: 'failing or missing required status checks',
+    behind: 'head branch is behind base branch',
+    unstable: 'optional status checks pending or failing',
+    has_hooks: 'repository has custom pre-receive hooks',
     clean: 'ready to merge',
+    draft: 'draft PR; not ready for review',
   };
   return descriptions[state] ?? `mergeable_state: ${state}`;
 }

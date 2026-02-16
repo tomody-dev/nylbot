@@ -24,6 +24,7 @@ import {
 import type { ActionConfig, EventContext, ActionResult, CheckResult, Octokit } from './types.js';
 import {
   isBot,
+  hasBotMention,
   parseCommand,
   hasValidAuthorAssociation,
   hasValidPermission,
@@ -65,6 +66,7 @@ export async function executeAction(
     actor,
     userType,
     authorAssociation,
+    serverUrl,
     eventName,
     isPullRequest,
   } = context;
@@ -88,16 +90,27 @@ export async function executeAction(
     return { status: 'skipped', message: 'Comment is from a bot' };
   }
 
-  // Parse and validate the merge command
-  // parseCommand() returns null if the command format is invalid
-  const mergeOptions = parseCommand(commentBody);
-  if (!mergeOptions) {
+  // If comment does not look like a bot command, skip without reaction
+  if (!hasBotMention(commentBody)) {
     return { status: 'skipped', message: 'Command not matched' };
   }
 
-  // Add eyes reaction for immediate feedback
-  // This happens as soon as we know it's a valid merge command
   await addReaction(octokit, owner, repo, commentId, 'eyes');
+
+  // Parse and validate the merge command; if invalid, reply with comment URL and skip
+  const mergeOptions = parseCommand(commentBody);
+  if (!mergeOptions) {
+    const base = serverUrl.replace(/\/+$/, '');
+    const commentUrl = new URL(`/${owner}/${repo}/pull/${prNumber}#issuecomment-${commentId}`, base).href;
+    await postComment(
+      octokit,
+      owner,
+      repo,
+      prNumber,
+      `## Unrecognized command\n\n> [!NOTE]\n> I'm nylbot. I couldn't recognize that command. If it was for me, please check the format.\n>\n> Comment: ${commentUrl}`,
+    );
+    return { status: 'skipped', message: 'Command not recognized' };
+  }
 
   // Check author association
   if (!hasValidAuthorAssociation(authorAssociation)) {
@@ -169,9 +182,33 @@ export async function executeAction(
   let validApprovals = 0;
   const dismissFailures: string[] = [];
 
+  // Cache permission lookups to avoid redundant API calls for the same reviewer
+  const permissionCache = new Map<string, string>();
+
   for (const review of approvedReviews) {
     // Skip self-approval
     if (review.user?.login === prData.author) {
+      continue;
+    }
+
+    // Skip reviews from users without sufficient permissions
+    // Note: We check permission level via API instead of review.author_association
+    // because GitHub App tokens (GITHUB_TOKEN) may return 'NONE' for author_association
+    // even when the user has valid permissions. See: https://github.com/orgs/community/discussions/70568
+    const reviewerLogin = review.user?.login;
+    if (!reviewerLogin) {
+      // Skip reviews from deleted users or users without login
+      continue;
+    }
+
+    // Check cache first to avoid redundant API calls
+    let reviewerPermission = permissionCache.get(reviewerLogin);
+    if (reviewerPermission === undefined) {
+      reviewerPermission = await getCollaboratorPermission(octokit, owner, repo, reviewerLogin);
+      permissionCache.set(reviewerLogin, reviewerPermission);
+    }
+
+    if (!hasValidPermission(reviewerPermission)) {
       continue;
     }
 
@@ -184,9 +221,10 @@ export async function executeAction(
           `- Failed to dismiss approval from @${review.user?.login} (insufficient permissions or branch protection settings)`,
         );
       }
-    } else {
-      validApprovals++;
+      continue;
     }
+
+    validApprovals++;
   }
 
   // Post stale dismissal notification only when there are failures.
@@ -224,12 +262,12 @@ export async function executeAction(
     ...(approvalOverridden && { optional: true }),
   };
 
-  // Merge conflicts check (based on mergeable_state)
-  const noConflicts = prData.mergeableState === 'clean';
-  const conflictsCheck: CheckResult = {
-    name: 'No merge conflicts',
-    passed: noConflicts,
-    ...(!noConflicts && { details: getMergeableStateDescription(prData.mergeableState) }),
+  // Mergeable-state check: this tool allows merge only when mergeable_state is 'clean'.
+  const mergeableStateIsClean = prData.mergeableState === 'clean';
+  const mergeableStateCheck: CheckResult = {
+    name: 'Mergeable state is clean',
+    passed: mergeableStateIsClean,
+    ...(!mergeableStateIsClean && { details: getMergeableStateDescription(prData.mergeableState) }),
   };
 
   // Optional: Conventional Commits check for PR title
@@ -249,7 +287,7 @@ export async function executeAction(
     ...prStateChecks,
     threadsCheck,
     approvalCheck,
-    conflictsCheck,
+    mergeableStateCheck,
     conventionalCommitsCheck,
   ];
 
@@ -324,7 +362,8 @@ export async function executeAction(
   }
 
   // Check final mergeability
-  if (prData.mergeable === false || prData.mergeable === null || prData.mergeableState === 'dirty') {
+  // Final mergeability gate to prevent TOCTOU issues, revalidating both mergeable flag and mergeableState
+  if (prData.mergeable === false || prData.mergeable === null || prData.mergeableState !== 'clean') {
     let errorComment: string;
     if (prData.mergeable === null) {
       errorComment = `## Mergeability status pending\n\n> [!NOTE]\n> GitHub is still calculating mergeability for this PR.\n>\n> - Mergeable: \`null\`\n> - Mergeable State: \`${prData.mergeableState}\`\n> - Retries: count=${config.mergeableRetryCount}, interval=${config.mergeableRetryInterval}s\n>\n> Please try \`/nylbot merge\` again shortly.`;

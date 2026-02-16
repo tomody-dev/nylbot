@@ -155,7 +155,7 @@ Before merging, the action validates:
 1. ✅ PR is ready for review (open, unlocked, and not a draft)
 2. ✅ All review conversations are resolved
 3. ✅ At least one valid approval from another user
-4. ✅ No merge conflicts
+4. ✅ Mergeable state is clean
 5. ✅ PR title follows Conventional Commits
 
 ### Check Status Icons
@@ -227,12 +227,32 @@ The workflow must have the following permissions:
 - `pull-requests: write` - For posting comments and dismissing reviews
 - `issues: write` - For adding reactions to comments
 
+### User Authorization
+
+To execute the `/nylbot merge` command, users must satisfy **both** of the following requirements:
+
+1. **Author Association**: Must be one of the following:
+   - **OWNER** - Repository owner
+   - **MEMBER** - Organization member
+   - **COLLABORATOR** - Explicitly added as a collaborator
+
+2. **Permission Level**: Must have one of the following permissions:
+   - **admin** - Full administrative access
+   - **maintain** - Maintain access (manage repository without destructive actions)
+   - **write** - Write access (push to repository)
+
+Both checks are performed because:
+
+- **Author association** verifies the user's relationship to the repository
+- **Permission level** confirms the user has actual write capabilities
+
+> [!NOTE]
+> **Approval validation uses different criteria**: When validating PR approvals, the action only checks the reviewer's permission level (admin/maintain/write) and does not check author association. This is because GitHub App tokens (like `GITHUB_TOKEN`) may return `'NONE'` for author_association even for valid collaborators. See [GitHub Community Discussion #70568](https://github.com/orgs/community/discussions/70568).
+
+Users without sufficient permissions will receive a clear error message when attempting to use the command.
+
 ## Limitations
 
 > [!WARNING]
 >
-> **Fork PRs are NOT supported**: `GITHUB_TOKEN` has limited write permissions for fork-originated PRs
-
-> [!NOTE]
->
-> **Authorization required**: Only organization owners, members, or collaborators with write access can use the command
+> **Fork PRs are NOT supported**: This action explicitly rejects PRs from forked repositories. This design decision is made because the typical usage pattern involves passing `GITHUB_TOKEN`, which has restricted write permissions on fork PRs as a GitHub security feature. While technically possible to support fork PRs with a Personal Access Token (PAT), this action intentionally does not support them to maintain a consistent and predictable behavior. To merge fork PRs, repository maintainers should use the GitHub web interface or push the fork branch to the main repository first.
