@@ -1,0 +1,95 @@
+name: nylbot-merge Dependency Upgrade
+
+# =============================================================================
+# nylbot-merge Dependency Upgrade Workflow
+# =============================================================================
+# This workflow automatically upgrades npm dependencies in the nylbot-merge
+# action by running `npm run all:full-upgrade` and creating a PR with changes.
+#
+# TRIGGERS:
+# - Manual trigger (`on.workflow_dispatch`)
+# - Scheduled trigger (`on.schedule`)
+#
+# REQUIRED PERMISSIONS:
+# - contents: write    - To push changes to a new branch
+# - pull-requests: write - To create and manage PRs
+#
+# REQUIRED REPOSITORY SETTINGS:
+# 1. Under Settings > Actions > General > Workflow permissions:
+#    - Enable "Read and write permissions" OR
+#    - Use a PAT (Personal Access Token) with repo scope
+# 2. Allow GitHub Actions to create and approve pull requests (optional, for
+#    better automation experience)
+#
+# WORKFLOW BEHAVIOR:
+# 1. Checks out the repository
+# 2. Runs `npm run all:full-upgrade`
+# 3. Creates or updates a PR with dependency upgrades:
+#    - Branch name is unique per base branch (e.g., bot/nylbot-merge-deps/develop)
+#    - If no existing PR exists for this base branch, creates a new one
+#    - If an existing PR exists for this base branch, updates it with the latest changes (force-push)
+#    - If no changes are detected, the action automatically skips PR creation
+#
+# PR LABELING:
+# - Automatically adds 'dependencies' label to the PR
+# - You may customize labels by modifying the 'labels' input below
+# =============================================================================
+
+on:
+  # Manual trigger
+  # - By default, this workflow runs on the repository's default branch if executed without changing any settings.
+  # - The target branch can be explicitly changed at execution time via the GitHub Actions UI.
+  workflow_dispatch:
+
+  # Scheduled trigger
+  # - This workflow runs on the repository's default branch only.
+  # - Branch selection is not supported for scheduled executions.
+  schedule:
+    # Runs every Saturday at 9:00 AM UTC
+    - cron: '0 9 * * 6'
+
+# Ensure only one nylbot-merge dependency upgrade workflow runs at a time per base branch
+concurrency:
+  group: nylbot-merge-deps/${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  upgrade-dependencies:
+    name: Upgrade nylbot-merge Dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Run dependency upgrade
+        id: upgrade
+        run: |
+          npm run all:full-upgrade
+          echo "✅ Dependency upgrade completed successfully"
+
+      - name: Create or Update Pull Request
+        id: create_pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'ci(deps-nylbot-merge): upgrade dependencies'
+          title: 'ci(deps-nylbot-merge): upgrade dependencies'
+          body: |
+            ## Automated Dependency Upgrade
+
+            This PR upgrades npm dependencies in the nylbot-merge action to their latest versions.
+
+            ---
+            _This PR was automatically created by the [nylbot-merge-upgrade-deps workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/nylbot-merge-upgrade-deps.yml)._
+            _Triggered by: @${{ github.actor }}_
+          branch: bot/nylbot-merge-deps/${{ github.ref_name }}
+          labels: dependencies
