@@ -194,9 +194,9 @@ jobs:
     steps:
       - uses: tomody-dev/nylbot/merge@v2
         # with:
-        #   release_branch_prefix: "release/"
-        #   develop_branch: "develop"
-        #   sync_branch_prefix: "fix/sync/"
+        #   release-branch-prefix: "release/"
+        #   develop-branch: "develop"
+        #   sync-branch-prefix: "fix/sync/"
 ```
 
 ## Inputs
@@ -207,7 +207,7 @@ jobs:
 | `release-branch-prefix`    | string | No       | `release/`            | -           | Prefix for release branches                        |
 | `develop-branch`           | string | No       | `develop`             | -           | Name of the develop branch                         |
 | `sync-branch-prefix`       | string | No       | `fix/sync/`           | -           | Prefix for sync branches (back-merges)             |
-| `mergeable-retry_count`    | number | No       | `5`                   | 1-20        | Number of retries for mergeable status calculation |
+| `mergeable-retry-count`    | number | No       | `5`                   | 1-20        | Number of retries for mergeable status calculation |
 | `mergeable-retry-interval` | number | No       | `10`                  | 1-60        | Interval in seconds between retries                |
 
 > [!NOTE]
