@@ -11,14 +11,7 @@ name: nylbot-merge Test
 
 on:
   pull_request:
-    paths:
-      - ".github/actions/nylbot-merge/**"
-      - ".github/workflows/nylbot-merge-test.yml"
   workflow_dispatch:
-
-defaults:
-  run:
-    working-directory: .github/actions/nylbot-merge
 
 jobs:
   test:
@@ -33,9 +26,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: ".github/actions/nylbot-merge/package-lock.json"
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
 
       - name: Install dependencies
         run: npm ci

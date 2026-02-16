@@ -156,7 +156,7 @@ describe('main.ts', () => {
       expect(mockGetOctokit).toHaveBeenCalledWith('test-token');
       expect(executeActionSpy).toHaveBeenCalled();
       expect(mockCore.setOutput).toHaveBeenCalledWith('result', 'merged');
-      expect(mockCore.setOutput).toHaveBeenCalledWith('merge_method', 'squash');
+      expect(mockCore.setOutput).toHaveBeenCalledWith('merge-method', 'squash');
       expect(buildSummaryMarkdownSpy).toHaveBeenCalled();
       expect(mockCore.summary.addRaw).toHaveBeenCalledWith('# Test Summary');
       expect(mockCore.info).toHaveBeenCalledWith('nylbot-merge result: merged - Pull request successfully merged');
@@ -170,11 +170,11 @@ describe('main.ts', () => {
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const customConfig: Record<string, string> = {
           'github-token': 'custom-token',
-          release_branch_prefix: 'rel/',
-          develop_branch: 'main',
-          sync_branch_prefix: 'sync/',
-          mergeable_retry_count: '3',
-          mergeable_retry_interval: '5',
+          'release-branch-prefix': 'rel/',
+          'develop-branch': 'main',
+          'sync-branch-prefix': 'sync/',
+          'mergeable-retry-count': '3',
+          'mergeable-retry-interval': '5',
         };
         return customConfig[name] || '';
       });
@@ -252,7 +252,7 @@ describe('main.ts', () => {
 
       // Assert
       expect(mockCore.setOutput).toHaveBeenCalledWith('result', 'skipped');
-      expect(mockCore.setOutput).not.toHaveBeenCalledWith('merge_method', expect.anything());
+      expect(mockCore.setOutput).not.toHaveBeenCalledWith('merge-method', expect.anything());
       expect(mockCore.info).toHaveBeenCalledWith('nylbot-merge result: skipped - Merge was skipped');
       expect(mockCore.setFailed).not.toHaveBeenCalled();
     });
@@ -527,8 +527,8 @@ describe('main.ts', () => {
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const config: Record<string, string> = {
           'github-token': 'test-token',
-          mergeable_retry_count: '10',
-          mergeable_retry_interval: '20',
+          'mergeable-retry-count': '10',
+          'mergeable-retry-interval': '20',
         };
         return config[name] || '';
       });
@@ -554,8 +554,8 @@ describe('main.ts', () => {
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const config: Record<string, string> = {
           'github-token': 'test-token',
-          mergeable_retry_count: 'not-a-number',
-          mergeable_retry_interval: '10',
+          'mergeable-retry-count': 'not-a-number',
+          'mergeable-retry-interval': '10',
         };
         return config[name] || '';
       });
@@ -566,7 +566,7 @@ describe('main.ts', () => {
       // Assert: Action should fail with clear error message
       expect(mockCore.setFailed).toHaveBeenCalledWith(
         expect.stringContaining(
-          'nylbot-merge action failed: Invalid mergeable_retry_count: "not-a-number" is not a valid integer',
+          'nylbot-merge action failed: Invalid mergeable-retry-count: "not-a-number" is not a valid integer',
         ),
       );
       expect(mockCore.setFailed).toHaveBeenCalledWith(expect.stringContaining('Must be between 1 and 20'));
@@ -578,8 +578,8 @@ describe('main.ts', () => {
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const config: Record<string, string> = {
           'github-token': 'test-token',
-          mergeable_retry_count: '-5',
-          mergeable_retry_interval: '10',
+          'mergeable-retry-count': '-5',
+          'mergeable-retry-interval': '10',
         };
         return config[name] || '';
       });
@@ -588,7 +588,7 @@ describe('main.ts', () => {
 
       expect(mockCore.setFailed).toHaveBeenCalledWith(
         expect.stringMatching(
-          /nylbot-merge action failed: Invalid mergeable_retry_count: -5 is out of range[\s\S]*Must be between 1 and 20/,
+          /nylbot-merge action failed: Invalid mergeable-retry-count: -5 is out of range[\s\S]*Must be between 1 and 20/,
         ),
       );
     });
@@ -599,8 +599,8 @@ describe('main.ts', () => {
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const config: Record<string, string> = {
           'github-token': 'test-token',
-          mergeable_retry_count: '100', // > max 20
-          mergeable_retry_interval: '10',
+          'mergeable-retry-count': '100', // > max 20
+          'mergeable-retry-interval': '10',
         };
         return config[name] || '';
       });
@@ -609,7 +609,7 @@ describe('main.ts', () => {
 
       expect(mockCore.setFailed).toHaveBeenCalledWith(
         expect.stringMatching(
-          /nylbot-merge action failed: Invalid mergeable_retry_count: 100 is out of range[\s\S]*Must be between 1 and 20/,
+          /nylbot-merge action failed: Invalid mergeable-retry-count: 100 is out of range[\s\S]*Must be between 1 and 20/,
         ),
       );
     });
@@ -620,8 +620,8 @@ describe('main.ts', () => {
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const config: Record<string, string> = {
           'github-token': 'test-token',
-          mergeable_retry_count: '20', // max valid
-          mergeable_retry_interval: '1', // min valid
+          'mergeable-retry-count': '20', // max valid
+          'mergeable-retry-interval': '1', // min valid
         };
         return config[name] || '';
       });
@@ -642,14 +642,14 @@ describe('main.ts', () => {
       expect(config.mergeableRetryInterval).toBe(1); // min boundary accepted
     });
 
-    it('should reject invalid mergeable_retry_interval with clear error message', async () => {
+    it('should reject invalid mergeable-retry-interval with clear error message', async () => {
       // Arrange
 
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const config: Record<string, string> = {
           'github-token': 'test-token',
-          mergeable_retry_count: '5',
-          mergeable_retry_interval: 'not-a-number',
+          'mergeable-retry-count': '5',
+          'mergeable-retry-interval': 'not-a-number',
         };
         return config[name] || '';
       });
@@ -658,19 +658,19 @@ describe('main.ts', () => {
 
       expect(mockCore.setFailed).toHaveBeenCalledWith(
         expect.stringMatching(
-          /nylbot-merge action failed: Invalid mergeable_retry_interval: "not-a-number" is not a valid integer[\s\S]*Must be between 1 and 60/,
+          /nylbot-merge action failed: Invalid mergeable-retry-interval: "not-a-number" is not a valid integer[\s\S]*Must be between 1 and 60/,
         ),
       );
     });
 
-    it('should reject out-of-range mergeable_retry_interval (too small)', async () => {
+    it('should reject out-of-range mergeable-retry-interval (too small)', async () => {
       // Arrange
 
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const config: Record<string, string> = {
           'github-token': 'test-token',
-          mergeable_retry_count: '5',
-          mergeable_retry_interval: '0',
+          'mergeable-retry-count': '5',
+          'mergeable-retry-interval': '0',
         };
         return config[name] || '';
       });
@@ -679,19 +679,19 @@ describe('main.ts', () => {
 
       expect(mockCore.setFailed).toHaveBeenCalledWith(
         expect.stringMatching(
-          /nylbot-merge action failed: Invalid mergeable_retry_interval: 0 is out of range[\s\S]*Must be between 1 and 60/,
+          /nylbot-merge action failed: Invalid mergeable-retry-interval: 0 is out of range[\s\S]*Must be between 1 and 60/,
         ),
       );
     });
 
-    it('should reject out-of-range mergeable_retry_interval (too large)', async () => {
+    it('should reject out-of-range mergeable-retry-interval (too large)', async () => {
       // Arrange
 
       (mockCore.getInput as Mock).mockImplementation((name: string) => {
         const config: Record<string, string> = {
           'github-token': 'test-token',
-          mergeable_retry_count: '5',
-          mergeable_retry_interval: '61',
+          'mergeable-retry-count': '5',
+          'mergeable-retry-interval': '61',
         };
         return config[name] || '';
       });
@@ -700,7 +700,7 @@ describe('main.ts', () => {
 
       expect(mockCore.setFailed).toHaveBeenCalledWith(
         expect.stringMatching(
-          /nylbot-merge action failed: Invalid mergeable_retry_interval: 61 is out of range[\s\S]*Must be between 1 and 60/,
+          /nylbot-merge action failed: Invalid mergeable-retry-interval: 61 is out of range[\s\S]*Must be between 1 and 60/,
         ),
       );
     });

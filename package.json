@@ -12,7 +12,7 @@
     "validation"
   ],
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/merge.js"
   },
   "engines": {
     "node": ">=24"

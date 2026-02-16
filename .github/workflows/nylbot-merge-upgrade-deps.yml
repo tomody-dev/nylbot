@@ -46,7 +46,7 @@ on:
   # - Branch selection is not supported for scheduled executions.
   schedule:
     # Runs every Saturday at 9:00 AM UTC
-    - cron: "0 9 * * 6"
+    - cron: '0 9 * * 6'
 
 # Ensure only one nylbot-merge dependency upgrade workflow runs at a time per base branch
 concurrency:
@@ -67,9 +67,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: ".github/actions/nylbot-merge/package-lock.json"
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: '.github/actions/nylbot-merge/package-lock.json'
 
       - name: Run dependency upgrade
         id: upgrade
@@ -82,8 +82,8 @@ jobs:
         id: create_pr
         uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: "ci(deps-nylbot-merge): upgrade dependencies"
-          title: "ci(deps-nylbot-merge): upgrade dependencies"
+          commit-message: 'ci(deps-nylbot-merge): upgrade dependencies'
+          title: 'ci(deps-nylbot-merge): upgrade dependencies'
           body: |
             ## Automated Dependency Upgrade
 

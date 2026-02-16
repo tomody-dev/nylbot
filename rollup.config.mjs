@@ -11,7 +11,7 @@ const config = defineConfig({
 
   output: {
     esModule: true,
-    file: 'dist/index.js',
+    file: 'dist/merge.js',
     format: 'es',
     inlineDynamicImports: true,
     sourcemap: false,

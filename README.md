@@ -192,40 +192,32 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - uses: {ORG}/{REPO}/.github/actions/nylbot-merge@develop
+      - uses: tomody-dev/nylbot/merge@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # release_branch_prefix: "release/"
-          # develop_branch: "develop"
-          # sync_branch_prefix: "fix/sync/"
 ```
-
-> [!NOTE]
->
-> - Replace `{ORG}` with the organization or user name and `{REPO}` with the repository name where this action is hosted.
-> - This Action has no stable release yet. Please use `@develop` until the first versioned tag becomes available.
 
 ## Inputs
 
 | Input                      | Type   | Required | Default     | Valid Range | Description                                        |
 | -------------------------- | ------ | -------- | ----------- | ----------- | -------------------------------------------------- |
 | `github-token`             | string | Yes      | -           | -           | GitHub token for API authentication                |
-| `release_branch_prefix`    | string | No       | `release/`  | -           | Prefix for release branches                        |
-| `develop_branch`           | string | No       | `develop`   | -           | Name of the develop branch                         |
-| `sync_branch_prefix`       | string | No       | `fix/sync/` | -           | Prefix for sync branches (back-merges)             |
-| `mergeable_retry_count`    | number | No       | `5`         | 1-20        | Number of retries for mergeable status calculation |
-| `mergeable_retry_interval` | number | No       | `10`        | 1-60        | Interval in seconds between retries                |
+| `release-branch-prefix`    | string | No       | `release/`  | -           | Prefix for release branches                        |
+| `develop-branch`           | string | No       | `develop`   | -           | Name of the develop branch                         |
+| `sync-branch-prefix`       | string | No       | `fix/sync/` | -           | Prefix for sync branches (back-merges)             |
+| `mergeable-retry-count`    | number | No       | `5`         | 1-20        | Number of retries for mergeable status calculation |
+| `mergeable-retry-interval` | number | No       | `10`        | 1-60        | Interval in seconds between retries                |
 
 > [!NOTE]
 >
-> **Input Validation**: Out-of-range values for `mergeable_retry_count` and `mergeable_retry_interval` will cause the action to fail with a clear error message indicating the valid range.
+> **Input Validation**: Out-of-range values for `mergeable-retry-count` and `mergeable-retry-interval` will cause the action to fail with a clear error message indicating the valid range.
 
 ## Outputs
 
 | Output         | Description                                                                 |
 | -------------- | --------------------------------------------------------------------------- |
 | `result`       | Result of the operation: `merged`, `skipped`, `failed`, or `already_merged` |
-| `merge_method` | Merge method used: `squash` or `merge` (only set when merged)               |
+| `merge-method` | Merge method used: `squash` or `merge` (only set when merged)               |
 
 ## Permissions Required
 

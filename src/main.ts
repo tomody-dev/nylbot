@@ -64,8 +64,8 @@ function createProductionDependencies(): RunDependencies {
  * @throws Error if any input validation fails
  */
 function parseConfig(core: ActionsCore): ActionConfig {
-  const retryCountInput = core.getInput('mergeable_retry_count') || '5';
-  const retryIntervalInput = core.getInput('mergeable_retry_interval') || '10';
+  const retryCountInput = core.getInput('mergeable-retry-count') || '5';
+  const retryIntervalInput = core.getInput('mergeable-retry-interval') || '10';
 
   const mergeableRetryCount = parseInt(retryCountInput, 10);
   const mergeableRetryInterval = parseInt(retryIntervalInput, 10);
@@ -73,29 +73,29 @@ function parseConfig(core: ActionsCore): ActionConfig {
   // Validate retry count: must be integer between 1 and 20
   if (Number.isNaN(mergeableRetryCount)) {
     throw new Error(
-      `Invalid mergeable_retry_count: "${retryCountInput}" is not a valid integer. Must be between 1 and 20.`,
+      `Invalid mergeable-retry-count: "${retryCountInput}" is not a valid integer. Must be between 1 and 20.`,
     );
   }
   if (mergeableRetryCount < 1 || mergeableRetryCount > 20) {
-    throw new Error(`Invalid mergeable_retry_count: ${mergeableRetryCount} is out of range. Must be between 1 and 20.`);
+    throw new Error(`Invalid mergeable-retry-count: ${mergeableRetryCount} is out of range. Must be between 1 and 20.`);
   }
 
   // Validate retry interval: must be integer between 1 and 60
   if (Number.isNaN(mergeableRetryInterval)) {
     throw new Error(
-      `Invalid mergeable_retry_interval: "${retryIntervalInput}" is not a valid integer. Must be between 1 and 60.`,
+      `Invalid mergeable-retry-interval: "${retryIntervalInput}" is not a valid integer. Must be between 1 and 60.`,
     );
   }
   if (mergeableRetryInterval < 1 || mergeableRetryInterval > 60) {
     throw new Error(
-      `Invalid mergeable_retry_interval: ${mergeableRetryInterval} is out of range. Must be between 1 and 60.`,
+      `Invalid mergeable-retry-interval: ${mergeableRetryInterval} is out of range. Must be between 1 and 60.`,
     );
   }
 
   return {
-    releaseBranchPrefix: core.getInput('release_branch_prefix') || 'release/',
-    developBranch: core.getInput('develop_branch') || 'develop',
-    syncBranchPrefix: core.getInput('sync_branch_prefix') || 'fix/sync/',
+    releaseBranchPrefix: core.getInput('release-branch-prefix') || 'release/',
+    developBranch: core.getInput('develop-branch') || 'develop',
+    syncBranchPrefix: core.getInput('sync-branch-prefix') || 'fix/sync/',
     mergeableRetryCount,
     mergeableRetryInterval,
   };
@@ -144,7 +144,7 @@ export async function run(deps: RunDependencies = createProductionDependencies()
 
     deps.core.setOutput('result', result.status);
     if (result.mergeMethod) {
-      deps.core.setOutput('merge_method', result.mergeMethod);
+      deps.core.setOutput('merge-method', result.mergeMethod);
     }
 
     const resultEmoji = {
