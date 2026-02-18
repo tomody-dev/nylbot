@@ -76,7 +76,7 @@ src/
 
 ### Code Quality and Naming
 
-For general refactoring principles, naming conventions, and module organization guidelines, see the **[Code Quality Guidelines](CONTRIBUTING.md#code-quality-guidelines)** section in CONTRIBUTING.md.
+For general refactoring principles, naming conventions, and module organization guidelines, see [Code quality guidelines](contributing/code-quality.md).
 
 ### Maintaining the nylbot-merge Structure
 
@@ -91,9 +91,9 @@ When modifying nylbot-merge specifically:
 
 ## Input Handling
 
-For GitHub Actions input handling guidelines (including DEPRECATED and OPTIONAL prefix rules), see the **[GitHub Actions Development](CONTRIBUTING.md#github-actions-development)** section in CONTRIBUTING.md.
+For GitHub Actions input handling guidelines (including DEPRECATED and OPTIONAL prefix rules), see [GitHub Actions input handling](contributing/github-actions-inputs.md).
 
-# Testing
+## Testing
 
 This action uses **Vitest** for unit testing with **Dependency Injection** for testability.
 
