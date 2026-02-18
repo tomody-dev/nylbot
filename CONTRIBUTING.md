@@ -1,6 +1,6 @@
 # Contributing Guidelines
 
-Contributions are welcome. This document gives you the essentials: what we expect, how to submit changes, and where to find detailed guidelines.
+Contributions are welcome. We value contributions of all kinds, including bug reports, feature requests, code changes, and documentation improvements. This document gives you the essentials: what we expect, how to submit changes, and where to find detailed guidelines.
 
 ## Non-negotiables
 
