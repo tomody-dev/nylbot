@@ -1,3 +1,5 @@
+name: on-comment
+
 # =============================================================================
 # on-comment - Project-Specific nylbot Commands Caller
 # =============================================================================
@@ -5,7 +7,7 @@
 # actions with project-specific configuration.
 #
 # Supported commands:
-# - /nylbot merge - See merge/action.yml for details
+# - /nylbot merge - See tomody-dev/nylbot merge/action.yml for details
 #
 # CUSTOMIZATION:
 # - Modify the `with` inputs below to match your project's branching strategy
@@ -17,6 +19,10 @@ on:
   issue_comment:
     types: [created]
 
+# GITHUB_TOKEN is unused; this workflow authenticates via a GitHub App token
+# created from secrets at runtime. Drop all default permissions.
+permissions: {}
+
 # Concurrency per PR number to avoid parallel execution
 concurrency:
   group: on-comment-${{ github.event.issue.number }}
@@ -24,6 +30,7 @@ concurrency:
 
 jobs:
   nylbot-merge:
+    name: nylbot-merge
     # Only run if this is a PR comment (not an issue)
     if: github.event.issue.pull_request
     runs-on: ubuntu-latest
