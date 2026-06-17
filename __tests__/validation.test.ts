@@ -20,6 +20,8 @@ import {
   hasBotMention,
   hasValidAuthorAssociation,
   hasValidPermission,
+  stripBotSuffix,
+  parseTrustedApproverBots,
   determineMergeMethod,
   validatePRState,
   getMergeableStateDescription,
@@ -42,6 +44,7 @@ function createConfig(overrides: Partial<ActionConfig> = {}): ActionConfig {
     syncBranchPrefix: 'fix/sync/',
     mergeableRetryCount: 5,
     mergeableRetryInterval: 10,
+    trustedApproverBots: [],
     ...overrides,
   };
 }
@@ -161,6 +164,63 @@ describe('isBot', () => {
     expect(isBot('Organization')).toBe(false);
     expect(isBot('Mannequin')).toBe(false);
     expect(isBot('')).toBe(false);
+  });
+});
+
+// =============================================================================
+// Tests for stripBotSuffix
+// =============================================================================
+
+describe('stripBotSuffix', () => {
+  it('removes a trailing [bot] suffix', () => {
+    expect(stripBotSuffix('tmd-tokenator[bot]')).toBe('tmd-tokenator');
+  });
+
+  it('returns the login unchanged when there is no suffix', () => {
+    expect(stripBotSuffix('tmd-tokenator')).toBe('tmd-tokenator');
+  });
+
+  it('is case-sensitive: only the literal "[bot]" is stripped', () => {
+    expect(stripBotSuffix('Foo[Bot]')).toBe('Foo[Bot]');
+    expect(stripBotSuffix('Foo[BOT]')).toBe('Foo[BOT]');
+  });
+
+  it('does not strip "[bot]" that appears in the middle of a login', () => {
+    expect(stripBotSuffix('foo[bot]bar')).toBe('foo[bot]bar');
+  });
+
+  it('returns an empty string when the input is just "[bot]"', () => {
+    expect(stripBotSuffix('[bot]')).toBe('');
+  });
+});
+
+// =============================================================================
+// Tests for parseTrustedApproverBots
+// =============================================================================
+
+describe('parseTrustedApproverBots', () => {
+  it('returns an empty list for empty input', () => {
+    expect(parseTrustedApproverBots('')).toEqual([]);
+  });
+
+  it('parses a single entry without suffix', () => {
+    expect(parseTrustedApproverBots('tmd-tokenator')).toEqual(['tmd-tokenator']);
+  });
+
+  it('normalizes the [bot] suffix to a slug', () => {
+    expect(parseTrustedApproverBots('tmd-tokenator[bot]')).toEqual(['tmd-tokenator']);
+  });
+
+  it('accepts comma-separated entries with surrounding whitespace', () => {
+    expect(parseTrustedApproverBots(' tmd-tokenator , another-bot[bot] ')).toEqual(['tmd-tokenator', 'another-bot']);
+  });
+
+  it('accepts newline-separated entries', () => {
+    expect(parseTrustedApproverBots('tmd-tokenator\nanother-bot[bot]')).toEqual(['tmd-tokenator', 'another-bot']);
+  });
+
+  it('drops empty and whitespace-only entries', () => {
+    expect(parseTrustedApproverBots(',\n  ,tmd-tokenator,\n')).toEqual(['tmd-tokenator']);
   });
 });
 

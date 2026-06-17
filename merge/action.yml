@@ -63,6 +63,15 @@ inputs:
     description: 'OPTIONAL: Interval in seconds between retries (valid range: 1-60)'
     required: false
     default: '10'
+  trusted-approver-bots:
+    description: |
+      OPTIONAL: Comma- or newline-separated list of trusted Bot reviewer logins
+      whose APPROVED reviews count toward the approval requirement. The "[bot]"
+      suffix is optional (e.g. "tmd-tokenator" and "tmd-tokenator[bot]" are
+      equivalent). Matching is case-sensitive. Default is empty (no Bot
+      approvals are accepted; human reviewers are unaffected).
+    required: false
+    default: ''
 
 outputs:
   result:

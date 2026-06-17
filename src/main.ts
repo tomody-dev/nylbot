@@ -27,6 +27,7 @@ import type {
   ActionsCore,
   GitHubContext,
 } from './types.js';
+import { parseTrustedApproverBots } from './validation.js';
 
 /**
  * Resolves runtime environment configuration.
@@ -98,6 +99,7 @@ function parseConfig(core: ActionsCore): ActionConfig {
     syncBranchPrefix: core.getInput('sync-branch-prefix') || 'fix/sync/',
     mergeableRetryCount,
     mergeableRetryInterval,
+    trustedApproverBots: parseTrustedApproverBots(core.getInput('trusted-approver-bots')),
   };
 }
 

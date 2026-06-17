@@ -27,6 +27,7 @@ function createConfig(overrides: Partial<ActionConfig> = {}): ActionConfig {
     syncBranchPrefix: 'fix/sync/',
     mergeableRetryCount: 5,
     mergeableRetryInterval: 10,
+    trustedApproverBots: [],
     ...overrides,
   };
 }
@@ -499,6 +500,227 @@ describe('executeAction', () => {
 
       // Should succeed with 2 valid approvals (member and collaborator with write/admin permissions)
       expect(result.status).toBe('merged');
+    });
+
+    it('accepts Bot approval when reviewer is in trusted-approver-bots allowlist', async () => {
+      const octokit = createMockOctokit();
+
+      let paginateCalls = 0;
+      octokit.paginate.mockImplementation(async () => {
+        paginateCalls++;
+        if (paginateCalls === 1) {
+          return [
+            {
+              id: 1,
+              state: 'APPROVED',
+              commit_id: 'abc1234567890',
+              user: { login: 'tmd-tokenator[bot]', type: 'Bot' },
+              author_association: 'CONTRIBUTOR',
+            },
+          ];
+        }
+        return [{ commit: { message: 'feat: add feature' } }];
+      });
+
+      // Actor (human) has write permission; no other reviewers
+      octokit.rest.repos.getCollaboratorPermissionLevel.mockImplementation(async (params) => {
+        if (params?.username === 'testactor') {
+          return {
+            data: { permission: 'write' },
+          } as Awaited<ReturnType<typeof octokit.rest.repos.getCollaboratorPermissionLevel>>;
+        }
+        return {
+          data: { permission: 'none' },
+        } as Awaited<ReturnType<typeof octokit.rest.repos.getCollaboratorPermissionLevel>>;
+      });
+
+      const context = createEventContext();
+      const config = createConfig({ trustedApproverBots: ['tmd-tokenator'] });
+
+      const result = await executeAction(octokit, context, config);
+
+      // Bot approval was accepted via allowlist and merge proceeded
+      expect(result.status).toBe('merged');
+
+      // Permission API must NOT be consulted for the Bot reviewer
+      const permissionCalls = octokit.rest.repos.getCollaboratorPermissionLevel.mock.calls;
+      const calledForBot = permissionCalls.some((call) => call[0]?.username === 'tmd-tokenator[bot]');
+      expect(calledForBot).toBe(false);
+    });
+
+    it('rejects Bot approval when reviewer is not in trusted-approver-bots allowlist', async () => {
+      const octokit = createMockOctokit();
+
+      octokit.paginate.mockResolvedValue([
+        {
+          id: 1,
+          state: 'APPROVED',
+          commit_id: 'abc1234567890',
+          user: { login: 'untrusted-bot[bot]', type: 'Bot' },
+          author_association: 'CONTRIBUTOR',
+        },
+      ]);
+
+      const context = createEventContext();
+      const config = createConfig({ trustedApproverBots: ['tmd-tokenator'] });
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(result.status).toBe('failed');
+      expect(result.message).toContain('checks failed');
+    });
+
+    it('rejects all Bot approvals when trusted-approver-bots is empty (default-deny)', async () => {
+      const octokit = createMockOctokit();
+
+      octokit.paginate.mockResolvedValue([
+        {
+          id: 1,
+          state: 'APPROVED',
+          commit_id: 'abc1234567890',
+          user: { login: 'tmd-tokenator[bot]', type: 'Bot' },
+          author_association: 'CONTRIBUTOR',
+        },
+      ]);
+
+      const context = createEventContext();
+      const config = createConfig(); // trustedApproverBots defaults to []
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(result.status).toBe('failed');
+    });
+
+    it('matches Bot login regardless of whether allowlist entry includes the [bot] suffix', async () => {
+      const octokit = createMockOctokit();
+
+      let paginateCalls = 0;
+      octokit.paginate.mockImplementation(async () => {
+        paginateCalls++;
+        if (paginateCalls === 1) {
+          return [
+            {
+              id: 1,
+              state: 'APPROVED',
+              commit_id: 'abc1234567890',
+              user: { login: 'tmd-tokenator[bot]', type: 'Bot' },
+              author_association: 'CONTRIBUTOR',
+            },
+          ];
+        }
+        return [{ commit: { message: 'feat: add feature' } }];
+      });
+
+      octokit.rest.repos.getCollaboratorPermissionLevel.mockImplementation(async (params) => {
+        if (params?.username === 'testactor') {
+          return {
+            data: { permission: 'write' },
+          } as Awaited<ReturnType<typeof octokit.rest.repos.getCollaboratorPermissionLevel>>;
+        }
+        return {
+          data: { permission: 'none' },
+        } as Awaited<ReturnType<typeof octokit.rest.repos.getCollaboratorPermissionLevel>>;
+      });
+
+      const context = createEventContext();
+      // Allowlist entry written with the [bot] suffix; should normalize to match
+      const config = createConfig({ trustedApproverBots: ['tmd-tokenator'] });
+
+      const result = await executeAction(octokit, context, config);
+
+      expect(result.status).toBe('merged');
+    });
+
+    it('skips Bot self-approval even when Bot is in trusted-approver-bots (defensive)', async () => {
+      const octokit = createMockOctokit();
+
+      // PR author is the Bot itself; allowlist trusts the Bot
+      octokit.rest.pulls.get.mockResolvedValue({
+        data: {
+          state: 'open',
+          locked: false,
+          draft: false,
+          merged: false,
+          mergeable: true,
+          mergeable_state: 'clean',
+          head: {
+            sha: 'abc1234567890',
+            ref: 'feature/test',
+            repo: { fork: false, owner: { id: 1 } },
+          },
+          base: {
+            ref: 'develop',
+            repo: { owner: { id: 1 } },
+          },
+          user: { login: 'tmd-tokenator[bot]' },
+          title: 'feat: test pull request',
+        },
+      } as unknown as Awaited<ReturnType<typeof octokit.rest.pulls.get>>);
+
+      octokit.paginate.mockResolvedValue([
+        {
+          id: 1,
+          state: 'APPROVED',
+          commit_id: 'abc1234567890',
+          user: { login: 'tmd-tokenator[bot]', type: 'Bot' },
+          author_association: 'CONTRIBUTOR',
+        },
+      ]);
+
+      const context = createEventContext();
+      const config = createConfig({ trustedApproverBots: ['tmd-tokenator'] });
+
+      const result = await executeAction(octokit, context, config);
+
+      // Self-approval skip applies; no valid approvals remain
+      expect(result.status).toBe('failed');
+    });
+
+    it('dismisses stale Bot approval via the same stale path as humans', async () => {
+      const octokit = createMockOctokit();
+
+      octokit.rest.pulls.get.mockResolvedValue({
+        data: {
+          state: 'open',
+          locked: false,
+          draft: false,
+          merged: false,
+          mergeable: true,
+          mergeable_state: 'clean',
+          head: {
+            sha: 'currenthead123',
+            ref: 'feature/test',
+            repo: { fork: false, owner: { id: 1 } },
+          },
+          base: {
+            ref: 'develop',
+            repo: { owner: { id: 1 } },
+          },
+          user: { login: 'testuser' },
+          title: 'feat: test pull request',
+        },
+      } as unknown as Awaited<ReturnType<typeof octokit.rest.pulls.get>>);
+
+      // Bot approval on an OLD commit
+      octokit.paginate.mockResolvedValue([
+        {
+          id: 1,
+          state: 'APPROVED',
+          commit_id: 'oldcommit456',
+          user: { login: 'tmd-tokenator[bot]', type: 'Bot' },
+          author_association: 'CONTRIBUTOR',
+        },
+      ]);
+
+      const context = createEventContext();
+      const config = createConfig({ trustedApproverBots: ['tmd-tokenator'] });
+
+      const result = await executeAction(octokit, context, config);
+
+      // Stale review should be dismissed even for Bot reviewers
+      expect(octokit.rest.pulls.dismissReview).toHaveBeenCalled();
+      // No remaining valid approvals
+      expect(result.status).toBe('failed');
     });
 
     it('Case A: fails when no approvals and no override flag, shows cross icon', async () => {

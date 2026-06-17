@@ -90,6 +90,43 @@ export function isBot(userType: string): boolean {
 }
 
 /**
+ * Strips the trailing "[bot]" suffix from a GitHub user login, if present.
+ * Used to normalize Bot reviewer logins for comparison against an allowlist
+ * of trusted App slugs. Case-sensitive: only the literal "[bot]" suffix is
+ * stripped, matching GitHub's canonical representation.
+ *
+ * @param login - The user login as returned by the GitHub API
+ * @returns The login with any trailing "[bot]" removed
+ *
+ * @example
+ * stripBotSuffix('tmd-tokenator[bot]') // 'tmd-tokenator'
+ * stripBotSuffix('tmd-tokenator')      // 'tmd-tokenator'
+ * stripBotSuffix('Foo[Bot]')           // 'Foo[Bot]' (case-sensitive, unchanged)
+ */
+export function stripBotSuffix(login: string): string {
+  const suffix = '[bot]';
+  return login.endsWith(suffix) ? login.slice(0, -suffix.length) : login;
+}
+
+/**
+ * Parses the raw `trusted-approver-bots` action input into a normalized
+ * allowlist of Bot reviewer slugs. The input may be comma- or newline-
+ * separated; each entry is trimmed, empty entries are dropped, and any
+ * trailing "[bot]" suffix is stripped so that both
+ * "tmd-tokenator" and "tmd-tokenator[bot]" normalize to "tmd-tokenator".
+ *
+ * @param raw - The raw input string (may be empty)
+ * @returns A normalized list of allowed Bot slugs
+ */
+export function parseTrustedApproverBots(raw: string): readonly string[] {
+  return raw
+    .split(/[\n,]/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+    .map(stripBotSuffix);
+}
+
+/**
  * Checks if the author association is valid for using the merge command.
  *
  * @param association - The author_association from GitHub API
