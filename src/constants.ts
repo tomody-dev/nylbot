@@ -33,7 +33,9 @@ export const VALID_FLAGS = ['--override-approval-requirement'] as const;
  * CONTRIBUTOR and others may have submitted PRs but lack merge authority.
  *
  * Note: Command actors must pass BOTH author association and permission checks.
- * Reviewers are validated using permission level only (see VALID_PERMISSIONS).
+ * Human reviewers are validated using permission level (see VALID_PERMISSIONS).
+ * Bot reviewers are validated against the trusted-approver-bots input allowlist
+ * because Bot accounts cannot be added as repository collaborators.
  */
 export const VALID_AUTHOR_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'] as const;
 
@@ -42,9 +44,11 @@ export const VALID_AUTHOR_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'] as 
  * Why: Maps to GitHub's permission model - admin/maintain/write can merge PRs.
  * Read-only users should not be able to trigger merges even if they can comment.
  *
- * Note: This check is used for both command actors (with author association check)
- * and reviewers (permission-only check, as GitHub App tokens may return 'NONE'
- * for author_association even for valid collaborators).
+ * Note: This check is used for both command actors (with author association
+ * check) and human reviewers (permission-only check, as GitHub App tokens may
+ * return 'NONE' for author_association even for valid collaborators). Bot
+ * reviewers are validated against the trusted-approver-bots input allowlist
+ * instead.
  */
 export const VALID_PERMISSIONS = ['admin', 'maintain', 'write'] as const;
 

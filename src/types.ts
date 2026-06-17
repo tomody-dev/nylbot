@@ -34,6 +34,12 @@ export interface ActionConfig {
   mergeableRetryCount: number;
   /** Interval in seconds between retries */
   mergeableRetryInterval: number;
+  /**
+   * Trusted Bot reviewer logins whose APPROVED reviews count as valid
+   * approvals. Stored with the "[bot]" suffix stripped (e.g. "tmd-tokenator").
+   * Empty by default; an empty list means no Bot approvals are accepted.
+   */
+  readonly trustedApproverBots: readonly string[];
 }
 
 /**

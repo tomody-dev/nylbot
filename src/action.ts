@@ -28,6 +28,7 @@ import {
   parseCommand,
   hasValidAuthorAssociation,
   hasValidPermission,
+  stripBotSuffix,
   validatePRState,
   determineMergeMethod,
   getMergeableStateDescription,
@@ -191,25 +192,36 @@ export async function executeAction(
       continue;
     }
 
-    // Skip reviews from users without sufficient permissions
-    // Note: We check permission level via API instead of review.author_association
-    // because GitHub App tokens (GITHUB_TOKEN) may return 'NONE' for author_association
-    // even when the user has valid permissions. See: https://github.com/orgs/community/discussions/70568
     const reviewerLogin = review.user?.login;
     if (!reviewerLogin) {
       // Skip reviews from deleted users or users without login
       continue;
     }
 
-    // Check cache first to avoid redundant API calls
-    let reviewerPermission = permissionCache.get(reviewerLogin);
-    if (reviewerPermission === undefined) {
-      reviewerPermission = await getCollaboratorPermission(octokit, owner, repo, reviewerLogin);
-      permissionCache.set(reviewerLogin, reviewerPermission);
-    }
-
-    if (!hasValidPermission(reviewerPermission)) {
-      continue;
+    // Reviewer eligibility check.
+    // Bot reviewers (GitHub App installations) are validated against the
+    // trusted-approver-bots allowlist because Bot user accounts cannot be
+    // added as repository collaborators, which makes the permission API
+    // structurally unable to authorize them. Human reviewers are validated
+    // by repository permission level.
+    if (isBot(review.user?.type ?? 'User')) {
+      const reviewerSlug = stripBotSuffix(reviewerLogin);
+      if (!config.trustedApproverBots.includes(reviewerSlug)) {
+        continue;
+      }
+    } else {
+      // Permission level via API is used instead of review.author_association
+      // because GitHub App tokens (GITHUB_TOKEN) may return 'NONE' for
+      // author_association even when the user has valid permissions.
+      // See: https://github.com/orgs/community/discussions/70568
+      let reviewerPermission = permissionCache.get(reviewerLogin);
+      if (reviewerPermission === undefined) {
+        reviewerPermission = await getCollaboratorPermission(octokit, owner, repo, reviewerLogin);
+        permissionCache.set(reviewerLogin, reviewerPermission);
+      }
+      if (!hasValidPermission(reviewerPermission)) {
+        continue;
+      }
     }
 
     // Check if review is stale (not on current HEAD)

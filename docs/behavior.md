@@ -106,7 +106,12 @@ This marker is **not** added if the override flag was specified but didn't take 
 
 ## Approval validation note
 
-When validating PR approvals, the action only checks the reviewer's permission level (admin/maintain/write) and does not check author association. This is because GitHub App tokens (like `GITHUB_TOKEN`) may return `'NONE'` for author_association even for valid collaborators. See [GitHub Community Discussion #70568](https://github.com/orgs/community/discussions/70568).
+The action validates approving reviewers differently depending on the reviewer type:
+
+- **Human reviewers**: validated via the reviewer's repository permission level (admin/maintain/write). Author association is intentionally not used because GitHub App tokens (like `GITHUB_TOKEN`) may return `'NONE'` for author_association even for valid collaborators. See [GitHub Community Discussion #70568](https://github.com/orgs/community/discussions/70568).
+- **Bot reviewers** (`user.type === 'Bot'`): validated via the `trusted-approver-bots` action input allowlist. GitHub App bot accounts cannot be added as repository collaborators, so the permission API cannot authorize them; the allowlist lets the workflow author declare which Bot logins are trusted reviewers for this repository. Matching is case-sensitive and the trailing `[bot]` suffix is optional. When the allowlist is empty (default), no Bot approvals are accepted.
+
+Self-approvals (reviewer login matches PR author) and stale reviews (review SHA differs from current HEAD) are rejected for both reviewer types.
 
 ## Check status icons
 

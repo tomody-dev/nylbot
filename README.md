@@ -56,7 +56,7 @@ Before merging, the action validates:
 
 1. ✅ PR is ready for review (open, unlocked, and not a draft)
 2. ✅ All review conversations are resolved
-3. ✅ At least one valid approval from another user
+3. ✅ At least one valid approval from another human reviewer or trusted Bot reviewer
 4. ✅ Mergeable state is clean
 5. ✅ PR title follows Conventional Commits
 
@@ -95,14 +95,15 @@ jobs:
 
 ## Inputs
 
-| Input                      | Type   | Required | Default               | Valid Range | Description                                        |
-| -------------------------- | ------ | -------- | --------------------- | ----------- | -------------------------------------------------- |
-| `token`                    | string | No       | `${{ github.token }}` | -           | GitHub token for API authentication                |
-| `release-branch-prefix`    | string | No       | `release/`            | -           | Prefix for release branches                        |
-| `develop-branch`           | string | No       | `develop`             | -           | Name of the develop branch                         |
-| `sync-branch-prefix`       | string | No       | `fix/sync/`           | -           | Prefix for sync branches (back-merges)             |
-| `mergeable-retry-count`    | number | No       | `5`                   | 1-20        | Number of retries for mergeable status calculation |
-| `mergeable-retry-interval` | number | No       | `10`                  | 1-60        | Interval in seconds between retries                |
+| Input                      | Type   | Required | Default               | Valid Range | Description                                                                                                                                                               |
+| -------------------------- | ------ | -------- | --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `token`                    | string | No       | `${{ github.token }}` | -           | GitHub token for API authentication                                                                                                                                       |
+| `release-branch-prefix`    | string | No       | `release/`            | -           | Prefix for release branches                                                                                                                                               |
+| `develop-branch`           | string | No       | `develop`             | -           | Name of the develop branch                                                                                                                                                |
+| `sync-branch-prefix`       | string | No       | `fix/sync/`           | -           | Prefix for sync branches (back-merges)                                                                                                                                    |
+| `mergeable-retry-count`    | number | No       | `5`                   | 1-20        | Number of retries for mergeable status calculation                                                                                                                        |
+| `mergeable-retry-interval` | number | No       | `10`                  | 1-60        | Interval in seconds between retries                                                                                                                                       |
+| `trusted-approver-bots`    | string | No       | (empty)               | -           | Comma- or newline-separated Bot reviewer logins whose APPROVED reviews count toward the approval requirement. The `[bot]` suffix is optional. Matching is case-sensitive. |
 
 > [!NOTE]
 >
@@ -123,7 +124,9 @@ The workflow must have the following permissions:
 - `pull-requests: write` - For posting comments and dismissing reviews
 - `issues: write` - For adding reactions to comments
 
-To execute `/nylbot merge`, the user must have **Author Association** (OWNER, MEMBER, or COLLABORATOR) and **Permission Level** (admin, maintain, or write). Both checks are performed because: **Author association** verifies the user's relationship to the repository; **Permission level** confirms the user has actual write capabilities. Users without sufficient permissions receive a clear error message. For approval validation (reviewer side), see [behavior.md](docs/behavior.md#approval-validation-note).
+To execute `/nylbot merge`, the user must have **Author Association** (OWNER, MEMBER, or COLLABORATOR) and **Permission Level** (admin, maintain, or write). Both checks are performed because: **Author association** verifies the user's relationship to the repository; **Permission level** confirms the user has actual write capabilities. Users without sufficient permissions receive a clear error message.
+
+For approval validation (reviewer side), human reviewers are validated by permission level and Bot reviewers are validated against the `trusted-approver-bots` input allowlist (empty by default, so no Bot approval is accepted unless explicitly opted in). See [behavior.md](docs/behavior.md#approval-validation-note) for the full reviewer-side validation policy.
 
 ## Limitations
 
