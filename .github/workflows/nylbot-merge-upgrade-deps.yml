@@ -58,7 +58,7 @@ concurrency:
 jobs:
   upgrade-dependencies:
     name: Upgrade nylbot-merge Dependencies
-    runs-on: ubuntu-latest
+    runs-on: ${{ contains(vars.RUNNER_OVERRIDE, 'self') && 'self-hosted-ubuntu-20.04' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v6
 

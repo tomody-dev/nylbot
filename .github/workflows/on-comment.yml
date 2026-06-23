@@ -33,7 +33,7 @@ jobs:
     name: nylbot-merge
     # Only run if this is a PR comment (not an issue)
     if: github.event.issue.pull_request
-    runs-on: ubuntu-latest
+    runs-on: ${{ contains(vars.RUNNER_OVERRIDE, 'self') && 'self-hosted-ubuntu-20.04' || 'ubuntu-latest' }}
     steps:
       - uses: actions/create-github-app-token@v3
         id: app-token
