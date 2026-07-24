@@ -30,11 +30,11 @@ Apply to **all inputs without exception** and must be followed permanently.
 
 ```yaml
 # Optional input
-description: "OPTIONAL: Path to the file"
+description: 'OPTIONAL: Path to the file'
 required: false
 
 # Deprecated input
-description: "DEPRECATED: Old configuration option"
+description: 'DEPRECATED: Old configuration option'
 required: false
 deprecationMessage: "'old_option' is deprecated and will be removed in a future release."
 ```
