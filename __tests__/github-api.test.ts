@@ -15,6 +15,7 @@ import {
   postComment,
   getCollaboratorPermission,
   fetchPullRequestData,
+  fetchProductionHistory,
   dismissReview,
   countUnresolvedThreads,
   mergePullRequest,
@@ -26,6 +27,46 @@ import { createMockOctokit } from './helpers/octokit.mock.js';
 // =============================================================================
 // Tests for GitHub API Functions (with mocks)
 // =============================================================================
+
+describe('fetchProductionHistory', () => {
+  it('pins both comparison inputs to SHA snapshots', async () => {
+    const octokit = createMockOctokit();
+    const result = await fetchProductionHistory(octokit, 'owner', 'repo', 'master', 'head-sha');
+    expect(octokit.rest.repos.getBranch).toHaveBeenCalledWith({ owner: 'owner', repo: 'repo', branch: 'master' });
+    expect(octokit.rest.repos.compareCommitsWithBasehead).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      basehead: 'production-sha...head-sha',
+      per_page: 1,
+    });
+    expect(result).toEqual({
+      branch: 'master',
+      productionSha: 'production-sha',
+      headSha: 'head-sha',
+      containsHead: false,
+    });
+  });
+
+  it('propagates a missing production branch', async () => {
+    const octokit = createMockOctokit();
+    octokit.rest.repos.getBranch.mockRejectedValue(new Error('Not Found'));
+    await expect(fetchProductionHistory(octokit, 'owner', 'repo', 'master', 'head-sha')).rejects.toThrow('Not Found');
+    expect(octokit.rest.repos.compareCommitsWithBasehead).not.toHaveBeenCalled();
+  });
+
+  it('returns null only for a branch lookup 404', async () => {
+    const octokit = createMockOctokit();
+    octokit.rest.repos.getBranch.mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 }));
+    await expect(fetchProductionHistory(octokit, 'owner', 'repo', 'main', 'head-sha')).resolves.toBeNull();
+    expect(octokit.rest.repos.compareCommitsWithBasehead).not.toHaveBeenCalled();
+  });
+
+  it('propagates comparison API failures', async () => {
+    const octokit = createMockOctokit();
+    octokit.rest.repos.compareCommitsWithBasehead.mockRejectedValue(new Error('Timeout'));
+    await expect(fetchProductionHistory(octokit, 'owner', 'repo', 'master', 'head-sha')).rejects.toThrow('Timeout');
+  });
+});
 
 describe('addReaction', () => {
   it('should call createForIssueComment with correct parameters', async () => {

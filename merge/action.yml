@@ -24,6 +24,7 @@
 #           # with:
 #           #   release-branch-prefix: "release/"
 #           #   develop-branch: "develop"
+#           #   production-branch: "master"
 #           #   sync-branch-prefix: "fix/sync/"
 #
 # AUTHORIZATION:
@@ -51,6 +52,10 @@ inputs:
     description: 'OPTIONAL: Name of the develop branch'
     required: false
     default: 'develop'
+  production-branch:
+    description: 'OPTIONAL: Explicit production branch for history-preserving back-merges into develop-branch. When empty, check main and master automatically; use merge if either contains the PR head.'
+    required: false
+    default: ''
   sync-branch-prefix:
     description: 'OPTIONAL: Prefix for sync branches used in back-merges (e.g., "fix/sync/")'
     required: false

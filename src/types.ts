@@ -28,6 +28,8 @@ export interface ActionConfig {
   releaseBranchPrefix: string;
   /** Name of the develop branch */
   developBranch: string;
+  /** Explicit production branch; empty checks main and master automatically. */
+  productionBranch: string;
   /** Prefix for sync branches used in back-merges */
   syncBranchPrefix: string;
   /** Number of retries for mergeable status calculation */
@@ -107,6 +109,24 @@ export interface CheckResult {
 export interface MergeMethodResult {
   method: 'squash' | 'merge';
   reason: string;
+  productionHistory?: readonly ProductionHistory[];
+}
+
+/** Evidence used to select a merge method from immutable commit comparisons. */
+export interface ProductionHistory {
+  branch: string;
+  productionSha: string;
+  headSha: string;
+  containsHead: boolean;
+}
+
+/** Fields required from the GitHub commit comparison response. */
+export interface CommitComparison {
+  status: string;
+  ahead_by: number;
+  behind_by: number;
+  base_commit: { sha: string };
+  merge_base_commit: { sha: string };
 }
 
 /**

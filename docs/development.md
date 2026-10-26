@@ -30,6 +30,7 @@ src/
 ├── github-api.ts     # GitHub API interaction wrappers
 ├── index.ts          # Action entry point for bundler
 ├── main.ts           # GitHub Actions runtime integration with DI
+├── merge-method.ts   # Branch-rule and production-history selection
 ├── types.ts          # Type definitions and DI interfaces
 └── validation.ts     # Pure validation and business logic functions
 ```
@@ -74,6 +75,8 @@ src/
    - Easily testable with no side effects
    - Depends on: types, constants
 
+**`merge-method.ts`** combines the existing branch rules with production-history lookup. It keeps API orchestration out of pure validation and returns the SHA evidence used for reporting and revalidation.
+
 ### Code Quality and Naming
 
 For general refactoring principles, naming conventions, and module organization guidelines, see [Code quality guidelines](contributing/code-quality.md).
@@ -108,11 +111,12 @@ The test suite uses **direct dependency injection** instead of vi.mock for bette
 
 ## Test Coverage
 
-| Test Type             | Status             | Description                                                            |
-| --------------------- | ------------------ | ---------------------------------------------------------------------- |
-| **Unit Tests**        | ✅ Implemented     | Covers command parsing, permissions, merge logic, and API interactions |
-| **Integration Tests** | ❌ Not implemented | Would test GitHub API interactions with real tokens                    |
-| **E2E Tests**         | ❌ Not implemented | Would test full workflow execution on real PRs                         |
+| Test Type                | Status             | Description                                                                                                        |
+| ------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| **Unit Tests**           | ✅ Implemented     | Covers command parsing, permissions, merge logic, and API interactions                                             |
+| **Git History Fixtures** | ✅ Implemented     | Builds disposable local histories to verify production ancestry and back-merge selection with mocked API responses |
+| **Integration Tests**    | ❌ Not implemented | Would test GitHub API interactions with real tokens                                                                |
+| **E2E Tests**            | ❌ Not implemented | Would test full workflow execution on real PRs                                                                     |
 
 ## Running Tests
 

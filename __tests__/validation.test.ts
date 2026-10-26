@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import type { ActionConfig, PullRequestData, CheckResult } from '../src/types.js';
+import type { ActionConfig, PullRequestData, CheckResult, CommitComparison } from '../src/types.js';
 import {
   parseCommand,
   isBot,
@@ -23,6 +23,7 @@ import {
   stripBotSuffix,
   parseTrustedApproverBots,
   determineMergeMethod,
+  isHeadInProduction,
   validatePRState,
   getMergeableStateDescription,
   buildCheckResultsMarkdown,
@@ -41,6 +42,7 @@ function createConfig(overrides: Partial<ActionConfig> = {}): ActionConfig {
   return {
     releaseBranchPrefix: 'release/',
     developBranch: 'develop',
+    productionBranch: '',
     syncBranchPrefix: 'fix/sync/',
     mergeableRetryCount: 5,
     mergeableRetryInterval: 10,
@@ -412,6 +414,57 @@ describe('determineMergeMethod', () => {
 // =============================================================================
 // Tests for validatePRState
 // =============================================================================
+
+describe('isHeadInProduction', () => {
+  const production = 'production-sha';
+  const head = 'head-sha';
+  const valid: CommitComparison = {
+    status: 'behind',
+    ahead_by: 0,
+    behind_by: 1,
+    base_commit: { sha: production },
+    merge_base_commit: { sha: head },
+  };
+
+  it.each([
+    { status: 'behind', ahead_by: 0, behind_by: 4, merge_base_commit: { sha: head }, expected: true },
+    { status: 'ahead', ahead_by: 4, behind_by: 0, merge_base_commit: { sha: production }, expected: false },
+    { status: 'diverged', ahead_by: 4, behind_by: 2, merge_base_commit: { sha: 'common' }, expected: false },
+  ])('checks $status in production...head direction', ({ expected, ...fields }) => {
+    expect(isHeadInProduction({ ...valid, ...fields }, production, head)).toBe(expected);
+  });
+
+  it('recognizes identical SHAs', () => {
+    expect(
+      isHeadInProduction({ ...valid, status: 'identical', behind_by: 0, base_commit: { sha: head } }, head, head),
+    ).toBe(true);
+  });
+
+  it.each([
+    { status: 'unknown' },
+    { ahead_by: -1 },
+    { ahead_by: NaN },
+    { behind_by: 0.5 },
+    { base_commit: { sha: 'wrong' } },
+    { merge_base_commit: { sha: '' } },
+    { status: 'behind', ahead_by: 1 },
+    { status: 'behind', behind_by: 0 },
+    { status: 'identical', behind_by: 0 },
+    { status: 'ahead', ahead_by: 1, behind_by: 1, merge_base_commit: { sha: production } },
+    { status: 'ahead', ahead_by: 1, behind_by: 0, merge_base_commit: { sha: 'wrong' } },
+    { status: 'diverged', ahead_by: 1, behind_by: 1, merge_base_commit: { sha: production } },
+    { status: 'diverged', ahead_by: 1, behind_by: 1, merge_base_commit: { sha: head } },
+    { status: 'diverged', ahead_by: 0, behind_by: 1, merge_base_commit: { sha: 'common' } },
+    { status: 'diverged', ahead_by: 1, behind_by: 0, merge_base_commit: { sha: 'common' } },
+    { merge_base_commit: { sha: 'wrong' } },
+  ])('rejects malformed or inconsistent comparison fields: %j', (fields) => {
+    expect(() => isHeadInProduction({ ...valid, ...fields }, production, head)).toThrow(/comparison response/);
+  });
+
+  it('rejects an incomplete response rather than choosing squash', () => {
+    expect(() => isHeadInProduction({} as CommitComparison, production, head)).toThrow(/comparison response/);
+  });
+});
 
 describe('validatePRState', () => {
   describe('valid PR state', () => {

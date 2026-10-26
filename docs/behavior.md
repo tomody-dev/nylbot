@@ -6,13 +6,34 @@ This document describes how nylbot-merge selects the merge method and formats me
 
 The action automatically selects the appropriate merge method:
 
-| Condition                   | Merge Method | Reason                       |
-| --------------------------- | ------------ | ---------------------------- |
-| Head branch is `release/*`  | Merge commit | Preserve release history     |
-| Head branch is `fix/sync/*` | Merge commit | Preserve back-merge history  |
-| Base branch is `release/*`  | Squash       | Clean release branch history |
-| Base branch is `develop`    | Squash       | Clean develop branch history |
-| Otherwise                   | Merge commit | Default behavior             |
+| Condition                                                                             | Merge Method | Reason                                         |
+| ------------------------------------------------------------------------------------- | ------------ | ---------------------------------------------- |
+| Head branch is `release/*`                                                            | Merge commit | Preserve release history                       |
+| Head branch is `fix/sync/*`                                                           | Merge commit | Preserve back-merge history                    |
+| Base branch is `release/*`                                                            | Squash       | Clean release branch history                   |
+| Base branch is `develop` and its exact PR head is contained in a production candidate | Merge commit | Preserve the already-integrated hotfix history |
+| Base branch is `develop`                                                              | Squash       | Clean develop branch history                   |
+| Otherwise                                                                             | Merge commit | Default behavior                               |
+
+### Production history lookup
+
+Production-history selection is enabled without additional configuration. When `production-branch` is empty, the action checks `main` and `master` and selects merge if either contains the exact PR head. Candidates returning 404 from the branch lookup are skipped. If neither candidate exists, the existing branch-name rules apply. If existing candidates do not contain the head, ordinary features still use squash.
+
+Set `production-branch` to override these candidates with a specific production branch. If that explicitly configured branch is missing, selection stops. The repository's default branch is not used as a substitute.
+
+History lookup applies only to develop-target PRs that would otherwise use squash. Existing release-source, sync-source, and release-target rules keep their precedence, including configured branch names and prefixes.
+
+The supported hotfix flow is:
+
+1. Merge the hotfix topic into production with a merge commit.
+2. Keep the topic unchanged after that merge. Additional production fixes use new hotfix topics.
+3. Back-merge the same topic into develop using `/nylbot merge`.
+
+The action captures each candidate's production SHA and compares it with the exact PR head SHA. If the head is an ancestor of a candidate or equals it, the action selects merge. Otherwise it keeps squash for ordinary features. It uses the comparison status and ancestry evidence rather than searching a paginated commit list.
+
+The candidate lookup and comparison are repeated after the existing head and mergeability checks. Normal production advances are accepted when the merge decision stays the same. A changed PR source or target, changed merge decision, failed API request, or inconsistent comparison response stops the operation and requires retry. These failures never fall back to squash. Only a missing automatic candidate is skipped; comparison errors, including comparison 404 responses, stop selection. PR comments record the selected method, reason, and production/head SHAs.
+
+History selection does not bypass permission, approval, unresolved-thread, or mergeability checks. A develop-side conflict does not invalidate production ancestry, but it still prevents automatic merging. If conflict resolution uses a separate integration branch, the existing `fix/sync/*` rule remains available without changing the original hotfix topic.
 
 ## Commit Message Behavior
 
@@ -20,7 +41,7 @@ nylbot-merge **explicitly specifies** both commit title and body to ensure consi
 
 ### Merge Commits
 
-For merge commits (used for `release/*` and `fix/sync/*` branches):
+For merge commits (including `release/*`, `fix/sync/*`, and production-integrated hotfix back-merges):
 
 **Title (first line):**
 
@@ -48,7 +69,7 @@ Merged-by: nylbot-merge (on behalf of @username)
 
 ### Squash Merges
 
-For squash merges (used for PRs targeting `develop` or `release/*` branches):
+For squash merges (used for ordinary features targeting `develop` and fixes targeting `release/*`):
 
 **Title (first line):**
 

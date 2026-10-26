@@ -172,6 +172,7 @@ describe('main.ts', () => {
           token: 'custom-token',
           'release-branch-prefix': 'rel/',
           'develop-branch': 'main',
+          'production-branch': '  production  ',
           'sync-branch-prefix': 'sync/',
           'mergeable-retry-count': '3',
           'mergeable-retry-interval': '5',
@@ -197,6 +198,7 @@ describe('main.ts', () => {
         expect.objectContaining({
           releaseBranchPrefix: 'rel/',
           developBranch: 'main',
+          productionBranch: 'production',
           syncBranchPrefix: 'sync/',
           mergeableRetryCount: 3,
           mergeableRetryInterval: 5,
@@ -227,6 +229,7 @@ describe('main.ts', () => {
 
       // Assert
       expect(executeActionSpy).toHaveBeenCalled();
+      expect(executeActionSpy.mock.calls[0]?.[2].productionBranch).toBe('');
     });
 
     it('should handle skipped merge result', async () => {

@@ -36,6 +36,8 @@ export type MockedOctokit = Omit<ActionsOctokit, 'rest' | 'paginate' | 'graphql'
     };
     repos: {
       getCollaboratorPermissionLevel: MockedFunction<Api['rest']['repos']['getCollaboratorPermissionLevel']>;
+      getBranch: MockedFunction<Api['rest']['repos']['getBranch']>;
+      compareCommitsWithBasehead: MockedFunction<Api['rest']['repos']['compareCommitsWithBasehead']>;
     };
     pulls: Omit<Api['rest']['pulls'], 'get' | 'listReviews' | 'listCommits' | 'dismissReview' | 'merge'> & {
       get: MockedFunction<Api['rest']['pulls']['get']>;
@@ -66,6 +68,16 @@ export function createMockOctokit(): MockedOctokit & ActionsOctokit {
         listComments: vi.fn().mockResolvedValue({ data: [] }),
       },
       repos: {
+        getBranch: vi.fn().mockResolvedValue({ data: { commit: { sha: 'production-sha' } } }),
+        compareCommitsWithBasehead: vi.fn().mockResolvedValue({
+          data: {
+            status: 'diverged',
+            ahead_by: 1,
+            behind_by: 1,
+            base_commit: { sha: 'production-sha' },
+            merge_base_commit: { sha: 'common-sha' },
+          },
+        }),
         getCollaboratorPermissionLevel: vi.fn().mockResolvedValue({
           data: { permission: 'write' },
         }),
