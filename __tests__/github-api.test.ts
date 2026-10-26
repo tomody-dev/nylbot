@@ -54,6 +54,13 @@ describe('fetchProductionHistory', () => {
     expect(octokit.rest.repos.compareCommitsWithBasehead).not.toHaveBeenCalled();
   });
 
+  it('returns null only for a branch lookup 404', async () => {
+    const octokit = createMockOctokit();
+    octokit.rest.repos.getBranch.mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 }));
+    await expect(fetchProductionHistory(octokit, 'owner', 'repo', 'main', 'head-sha')).resolves.toBeNull();
+    expect(octokit.rest.repos.compareCommitsWithBasehead).not.toHaveBeenCalled();
+  });
+
   it('propagates comparison API failures', async () => {
     const octokit = createMockOctokit();
     octokit.rest.repos.compareCommitsWithBasehead.mockRejectedValue(new Error('Timeout'));

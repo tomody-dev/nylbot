@@ -10,7 +10,8 @@ import { isHeadInProduction } from './validation.js';
 
 /**
  * Captures the production branch and compares immutable SHAs against the PR head.
- * API failures propagate: inability to establish ancestry is not a negative match.
+ * Only a branch-lookup 404 means the candidate does not exist. Comparison errors
+ * propagate: inability to establish ancestry is not a negative match.
  */
 export async function fetchProductionHistory(
   octokit: Octokit,
@@ -18,9 +19,17 @@ export async function fetchProductionHistory(
   repo: string,
   branch: string,
   headSha: string,
-): Promise<ProductionHistory> {
-  const production = await octokit.rest.repos.getBranch({ owner, repo, branch });
-  const productionSha = production.data.commit.sha;
+): Promise<ProductionHistory | null> {
+  let productionSha: string;
+  try {
+    const production = await octokit.rest.repos.getBranch({ owner, repo, branch });
+    productionSha = production.data.commit.sha;
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'status' in error && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
   const comparison = await octokit.rest.repos.compareCommitsWithBasehead({
     owner,
     repo,

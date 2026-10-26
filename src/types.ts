@@ -28,7 +28,7 @@ export interface ActionConfig {
   releaseBranchPrefix: string;
   /** Name of the develop branch */
   developBranch: string;
-  /** Production branch used for history-preserving back-merges; empty disables the lookup. */
+  /** Explicit production branch; empty checks main and master automatically. */
   productionBranch: string;
   /** Prefix for sync branches used in back-merges */
   syncBranchPrefix: string;
@@ -109,7 +109,7 @@ export interface CheckResult {
 export interface MergeMethodResult {
   method: 'squash' | 'merge';
   reason: string;
-  productionHistory?: ProductionHistory;
+  productionHistory?: readonly ProductionHistory[];
 }
 
 /** Evidence used to select a merge method from immutable commit comparisons. */

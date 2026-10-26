@@ -107,6 +107,16 @@ describe('production history back-merges', () => {
   }
   const config = createConfig({ productionBranch: 'master' });
 
+  it('uses production history without requiring production-branch configuration', async () => {
+    const octokit = approvedOctokit();
+    const result = await executeAction(octokit, createEventContext(), createConfig());
+    expect(result.mergeMethod).toBe('merge');
+    expect(octokit.rest.repos.getBranch).toHaveBeenCalledWith({ owner: 'testowner', repo: 'testrepo', branch: 'main' });
+    expect(octokit.rest.pulls.merge).toHaveBeenCalledWith(
+      expect.objectContaining({ merge_method: 'merge', sha: head }),
+    );
+  });
+
   it('merges the production-integrated head with a merge commit and records the SHA evidence', async () => {
     const octokit = approvedOctokit();
     const result = await executeAction(octokit, createEventContext(), config);

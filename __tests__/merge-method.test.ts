@@ -38,7 +38,6 @@ const pr: PullRequestData = {
 
 describe('resolveMergeMethod', () => {
   it.each([
-    { headRef: 'topic/fix', baseRef: 'develop', productionBranch: '', method: 'squash' },
     { headRef: 'release/1.0.0', baseRef: 'develop', productionBranch: 'master', method: 'merge' },
     { headRef: 'fix/sync/fix', baseRef: 'develop', productionBranch: 'master', method: 'merge' },
     { headRef: 'topic/fix', baseRef: 'release/1.0.0', productionBranch: 'master', method: 'squash' },
@@ -75,7 +74,8 @@ describe('resolveMergeMethod', () => {
       per_page: 1,
     });
     expect(result.reason).toContain('is not contained');
-    expect(result.productionHistory?.containsHead).toBe(false);
+    expect(result.productionHistory?.[0]?.containsHead).toBe(false);
+    expect(octokit.rest.repos.getBranch).toHaveBeenCalledTimes(1);
   });
 
   it('does not override a configured release target even if it is also the develop branch', async () => {
@@ -89,6 +89,90 @@ describe('resolveMergeMethod', () => {
     );
     expect(result.method).toBe('squash');
     expect(octokit.rest.repos.getBranch).not.toHaveBeenCalled();
+  });
+});
+
+describe('automatic main/master production candidates', () => {
+  function mockCandidates(candidates: Partial<Record<string, boolean>>) {
+    const octokit = createMockOctokit();
+    octokit.rest.repos.getBranch.mockImplementation(async (params) => {
+      const branch = params?.branch ?? '';
+      if (candidates[branch] === undefined) {
+        throw Object.assign(new Error('Not Found'), { status: 404 });
+      }
+      return { data: { commit: { sha: branch + '-sha' } } } as Awaited<ReturnType<typeof octokit.rest.repos.getBranch>>;
+    });
+    octokit.rest.repos.compareCommitsWithBasehead.mockImplementation(async (params) => {
+      const productionSha = params?.basehead.split('...')[0] ?? '';
+      const branch = productionSha.slice(0, -4);
+      const containsHead = candidates[branch] === true;
+      return {
+        data: {
+          status: containsHead ? 'behind' : 'diverged',
+          ahead_by: containsHead ? 0 : 1,
+          behind_by: 1,
+          base_commit: { sha: productionSha },
+          merge_base_commit: { sha: containsHead ? pr.headSha : 'common-sha' },
+        },
+      } as Awaited<ReturnType<typeof octokit.rest.repos.compareCommitsWithBasehead>>;
+    });
+    return octokit;
+  }
+
+  it.each([
+    { candidates: { main: true }, checked: ['main'], method: 'merge' },
+    { candidates: { master: true }, checked: ['main', 'master'], method: 'merge' },
+    { candidates: { main: false, master: true }, checked: ['main', 'master'], method: 'merge' },
+    { candidates: { main: true, master: false }, checked: ['main'], method: 'merge' },
+    { candidates: { main: false, master: false }, checked: ['main', 'master'], method: 'squash' },
+    { candidates: { main: false }, checked: ['main', 'master'], method: 'squash' },
+    { candidates: {}, checked: ['main', 'master'], method: 'squash' },
+  ])('selects $method without configuration for %j', async ({ candidates, checked, method }) => {
+    const octokit = mockCandidates(candidates);
+    const result = await resolveMergeMethod(octokit, 'owner', 'repo', pr, { ...config, productionBranch: '' });
+    expect(result.method).toBe(method);
+    expect(octokit.rest.repos.getBranch.mock.calls.map(([params]) => params?.branch)).toEqual(checked);
+    expect(result.productionHistory).toBeDefined();
+    if (method === 'merge') {
+      expect(result.productionHistory?.some((history) => history.containsHead)).toBe(true);
+    }
+  });
+
+  it('reports the absence of both default candidates without blocking ordinary feature merges', async () => {
+    const octokit = mockCandidates({});
+    const result = await resolveMergeMethod(octokit, 'owner', 'repo', pr, { ...config, productionBranch: '' });
+    expect(result.reason).toContain('No production branches found');
+    expect(result.productionHistory).toEqual([]);
+    expect(octokit.rest.repos.compareCommitsWithBasehead).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to automatic candidates when an explicit production branch is missing', async () => {
+    const octokit = mockCandidates({ main: true, master: true });
+    await expect(
+      resolveMergeMethod(octokit, 'owner', 'repo', pr, { ...config, productionBranch: 'production' }),
+    ).rejects.toThrow('Configured production branch');
+    expect(octokit.rest.repos.getBranch.mock.calls.map(([params]) => params?.branch)).toEqual(['production']);
+  });
+
+  it.each([401, 403, 429, 500])(
+    'propagates branch lookup HTTP %s instead of treating it as absence',
+    async (status) => {
+      const octokit = mockCandidates({ master: true });
+      octokit.rest.repos.getBranch.mockRejectedValue(Object.assign(new Error('API unavailable'), { status }));
+      await expect(
+        resolveMergeMethod(octokit, 'owner', 'repo', pr, { ...config, productionBranch: '' }),
+      ).rejects.toThrow('API unavailable');
+    },
+  );
+
+  it('propagates comparison 404 even when a missing main candidate was skipped', async () => {
+    const octokit = mockCandidates({ master: true });
+    octokit.rest.repos.compareCommitsWithBasehead.mockRejectedValue(
+      Object.assign(new Error('Comparison unavailable'), { status: 404 }),
+    );
+    await expect(resolveMergeMethod(octokit, 'owner', 'repo', pr, { ...config, productionBranch: '' })).rejects.toThrow(
+      'Comparison unavailable',
+    );
   });
 });
 

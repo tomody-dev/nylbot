@@ -75,7 +75,7 @@ src/
    - Easily testable with no side effects
    - Depends on: types, constants
 
-**`merge-method.ts`** combines the existing branch rules with the optional production-history lookup. It keeps API orchestration out of pure validation and returns the SHA evidence used for reporting and revalidation.
+**`merge-method.ts`** combines the existing branch rules with production-history lookup. It keeps API orchestration out of pure validation and returns the SHA evidence used for reporting and revalidation.
 
 ### Code Quality and Naming
 

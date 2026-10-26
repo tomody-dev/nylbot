@@ -1,10 +1,11 @@
 /**
  * Merge method selection combining existing branch rules with production history.
- * The production lookup is opt-in and only applies to ordinary develop-target PRs.
+ * Production lookup applies to ordinary develop-target PRs and defaults to main
+ * and master when no explicit production branch is configured.
  */
 
 import { fetchProductionHistory } from './github-api.js';
-import type { ActionConfig, MergeMethodResult, Octokit, PullRequestData } from './types.js';
+import type { ActionConfig, MergeMethodResult, Octokit, ProductionHistory, PullRequestData } from './types.js';
 import { determineMergeMethod } from './validation.js';
 
 /**
@@ -21,7 +22,6 @@ export async function resolveMergeMethod(
 ): Promise<MergeMethodResult> {
   const selected = determineMergeMethod(pr.headRef, pr.baseRef, config);
   if (
-    !config.productionBranch ||
     selected.method !== 'squash' ||
     pr.baseRef !== config.developBranch ||
     pr.baseRef.startsWith(config.releaseBranchPrefix)
@@ -29,13 +29,33 @@ export async function resolveMergeMethod(
     return selected;
   }
 
-  const history = await fetchProductionHistory(octokit, owner, repo, config.productionBranch, pr.headSha);
-  const evidence = `Head SHA ${history.headSha} ${history.containsHead ? 'is' : 'is not'} contained in production branch \`${history.branch}\` at ${history.productionSha}`;
+  const branches = config.productionBranch ? [config.productionBranch] : ['main', 'master'];
+  const histories: ProductionHistory[] = [];
+  for (const branch of branches) {
+    const history = await fetchProductionHistory(octokit, owner, repo, branch, pr.headSha);
+    if (!history) {
+      if (config.productionBranch) {
+        throw new Error(`Configured production branch \`${branch}\` was not found`);
+      }
+      continue;
+    }
+    histories.push(history);
+    if (history.containsHead) {
+      return {
+        method: 'merge',
+        reason: `Head SHA ${history.headSha} is contained in production branch \`${history.branch}\` at ${history.productionSha} (merge commit to preserve back-merge history)`,
+        productionHistory: histories,
+      };
+    }
+  }
+
+  const evidence =
+    histories.length > 0
+      ? `Head SHA ${pr.headSha} is not contained in production branches ${histories.map((history) => `\`${history.branch}\` at ${history.productionSha}`).join(', ')}`
+      : `No production branches found (checked: ${branches.join(', ')})`;
   return {
-    method: history.containsHead ? 'merge' : 'squash',
-    reason: history.containsHead
-      ? `${evidence} (merge commit to preserve back-merge history)`
-      : `${evidence}; ${selected.reason}`,
-    productionHistory: history,
+    ...selected,
+    reason: `${evidence}; ${selected.reason}`,
+    productionHistory: histories,
   };
 }

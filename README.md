@@ -7,7 +7,7 @@ A TypeScript-based GitHub Action that provides automated PR merging via the `/ny
 - 🔐 **Permission validation** - Only authorized users can trigger merges
 - ✅ **PR status checks** - Validates PR is open, unlocked, and not a draft
 - 💬 **Review validation** - Ensures all conversations are resolved and approval exists
-- 🔀 **Smart merge method** - Automatically selects squash or merge commit based on branch patterns and optional production history
+- 🔀 **Smart merge method** - Automatically selects squash or merge commit based on branch patterns and production history
 - 🔒 **Stale approval handling** - Dismisses approvals on outdated commits
 - 📊 **Detailed feedback** - Posts clear status messages to PR comments
 - ✅ **Unit tested** - Comprehensive test suite with extensive test coverage
@@ -96,16 +96,16 @@ jobs:
 
 ## Inputs
 
-| Input                      | Type   | Required | Default               | Valid Range | Description                                                                                                                                                               |
-| -------------------------- | ------ | -------- | --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `token`                    | string | No       | `${{ github.token }}` | -           | GitHub token for API authentication                                                                                                                                       |
-| `release-branch-prefix`    | string | No       | `release/`            | -           | Prefix for release branches                                                                                                                                               |
-| `develop-branch`           | string | No       | `develop`             | -           | Name of the develop branch                                                                                                                                                |
-| `production-branch`        | string | No       | empty                 | -           | Enable history-preserving back-merges into `develop-branch` for PR heads already contained in this production branch. Empty keeps the existing branch-name rules.         |
-| `sync-branch-prefix`       | string | No       | `fix/sync/`           | -           | Prefix for sync branches (back-merges)                                                                                                                                    |
-| `mergeable-retry-count`    | number | No       | `5`                   | 1-20        | Number of retries for mergeable status calculation                                                                                                                        |
-| `mergeable-retry-interval` | number | No       | `10`                  | 1-60        | Interval in seconds between retries                                                                                                                                       |
-| `trusted-approver-bots`    | string | No       | (empty)               | -           | Comma- or newline-separated Bot reviewer logins whose APPROVED reviews count toward the approval requirement. The `[bot]` suffix is optional. Matching is case-sensitive. |
+| Input                      | Type   | Required | Default                            | Valid Range | Description                                                                                                                                                                 |
+| -------------------------- | ------ | -------- | ---------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `token`                    | string | No       | `${{ github.token }}`              | -           | GitHub token for API authentication                                                                                                                                         |
+| `release-branch-prefix`    | string | No       | `release/`                         | -           | Prefix for release branches                                                                                                                                                 |
+| `develop-branch`           | string | No       | `develop`                          | -           | Name of the develop branch                                                                                                                                                  |
+| `production-branch`        | string | No       | empty (checks `main` and `master`) | -           | Override the production branch used for history-preserving back-merges into `develop-branch`. Without an override, either main or master may establish production ancestry. |
+| `sync-branch-prefix`       | string | No       | `fix/sync/`                        | -           | Prefix for sync branches (back-merges)                                                                                                                                      |
+| `mergeable-retry-count`    | number | No       | `5`                                | 1-20        | Number of retries for mergeable status calculation                                                                                                                          |
+| `mergeable-retry-interval` | number | No       | `10`                               | 1-60        | Interval in seconds between retries                                                                                                                                         |
+| `trusted-approver-bots`    | string | No       | (empty)                            | -           | Comma- or newline-separated Bot reviewer logins whose APPROVED reviews count toward the approval requirement. The `[bot]` suffix is optional. Matching is case-sensitive.   |
 
 > [!NOTE]
 >
@@ -113,7 +113,9 @@ jobs:
 
 ### History-preserving hotfix back-merges
 
-Set `production-branch: master` in the caller workflow to enable automatic merge commits when back-merging a hotfix into `develop`. The production branch is explicit; it is not inferred from the repository's default branch.
+No additional configuration is required for repositories using `main` or `master`. When back-merging into `develop`, the action checks these production candidates and selects merge if either contains the exact PR head. Missing candidates are skipped; if neither exists, the existing branch-name rules apply. The repository's default branch is not used as a substitute.
+
+Set `production-branch` only to override the candidates with a specific production branch, such as `production`. A missing explicitly configured branch stops the operation instead of falling back to main or master.
 
 Merge the hotfix topic into production first, keep that topic unchanged, then use the usual `/nylbot merge` command on its develop-target PR. The action verifies that the exact PR head is already contained in the production history and preserves it with a merge commit. Further production fixes use new hotfix topics.
 

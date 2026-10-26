@@ -53,7 +53,7 @@ inputs:
     required: false
     default: 'develop'
   production-branch:
-    description: 'OPTIONAL: Production branch whose already-integrated PR heads use merge commits when back-merged into develop-branch. Empty preserves branch-name-only selection.'
+    description: 'OPTIONAL: Explicit production branch for history-preserving back-merges into develop-branch. When empty, check main and master automatically; use merge if either contains the PR head.'
     required: false
     default: ''
   sync-branch-prefix:
