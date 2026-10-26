@@ -21,7 +21,8 @@ import {
   mergePullRequest,
   fetchPullRequestCommits,
 } from './github-api.js';
-import type { ActionConfig, EventContext, ActionResult, CheckResult, Octokit } from './types.js';
+import { resolveMergeMethod } from './merge-method.js';
+import type { ActionConfig, EventContext, ActionResult, CheckResult, Octokit, MergeMethodResult } from './types.js';
 import {
   isBot,
   hasBotMention,
@@ -30,7 +31,6 @@ import {
   hasValidPermission,
   stripBotSuffix,
   validatePRState,
-  determineMergeMethod,
   getMergeableStateDescription,
   buildCheckResultsMarkdown,
   isConventionalCommitTitle,
@@ -292,7 +292,20 @@ export async function executeAction(
   };
 
   // Determine merge method
-  const mergeMethodResult = determineMergeMethod(prData.headRef, prData.baseRef, config);
+  let mergeMethodResult: MergeMethodResult;
+  try {
+    mergeMethodResult = await resolveMergeMethod(octokit, owner, repo, prData, config);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    await postComment(
+      octokit,
+      owner,
+      repo,
+      prNumber,
+      `## Cannot determine merge method\n\nProduction history could not be verified. No merge was attempted.\n\n${message}\n\nPlease check the production-branch configuration and API access, then retry.`,
+    );
+    return { status: 'failed', message: `Merge method selection failed: ${message}` };
+  }
 
   // Build checks array in the final order directly
   const checks: CheckResult[] = [
@@ -337,6 +350,8 @@ export async function executeAction(
   // -------------------------------------------------------------------------
 
   const originalHeadSha = prData.headSha;
+  const originalHeadRef = prData.headRef;
+  const originalBaseRef = prData.baseRef;
 
   // Re-fetch PR data for TOCTOU check
   prData = await fetchPullRequestData(octokit, owner, repo, prNumber);
@@ -386,6 +401,46 @@ export async function executeAction(
     }
     await postComment(octokit, owner, repo, prNumber, errorComment);
     return { status: 'failed', message: 'Not mergeable' };
+  }
+
+  if (prData.headRef !== originalHeadRef || prData.baseRef !== originalBaseRef) {
+    await postComment(
+      octokit,
+      owner,
+      repo,
+      prNumber,
+      '## PR branches changed\n\nThe PR source or target branch changed while validating. No merge was attempted. Please run `/nylbot merge` again.',
+    );
+    return { status: 'failed', message: 'TOCTOU violation: PR branches changed' };
+  }
+
+  // Refresh history after the existing HEAD and mergeability checks. A normal
+  // production advance preserves the decision; a changed decision requires retry.
+  if (mergeMethodResult.productionHistory) {
+    try {
+      const refreshed = await resolveMergeMethod(octokit, owner, repo, prData, config);
+      if (refreshed.method !== mergeMethodResult.method) {
+        await postComment(
+          octokit,
+          owner,
+          repo,
+          prNumber,
+          `## Merge method changed\n\nProduction history changed while validating. No merge was attempted.\n\n- **Previous:** \`${mergeMethodResult.method}\`\n- **Current:** \`${refreshed.method}\`\n- **Reason:** ${refreshed.reason}\n\nPlease run \`/nylbot merge\` again.`,
+        );
+        return { status: 'failed', message: 'TOCTOU violation: merge method changed' };
+      }
+      mergeMethodResult = refreshed;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await postComment(
+        octokit,
+        owner,
+        repo,
+        prNumber,
+        `## Cannot revalidate merge method\n\nProduction history could not be verified. No merge was attempted.\n\n${message}\n\nPlease run \`/nylbot merge\` again after the problem is resolved.`,
+      );
+      return { status: 'failed', message: `Merge method revalidation failed: ${message}` };
+    }
   }
 
   // Perform merge
@@ -485,7 +540,7 @@ export async function executeAction(
     owner,
     repo,
     prNumber,
-    `## Merged by nylbot-merge\n\nThis PR has been successfully merged.\n\n### Details\n\n- **Merge Method:** \`${mergeMethodResult.method}\`\n- **Base Branch:** \`${prData.baseRef}\`\n- **Head Branch:** \`${prData.headRef}\`\n- **HEAD SHA:** ${originalHeadSha}${mergeCommitInfo}`,
+    `## Merged by nylbot-merge\n\nThis PR has been successfully merged.\n\n### Details\n\n- **Merge Method:** \`${mergeMethodResult.method}\`\n- **Base Branch:** \`${prData.baseRef}\`\n- **Head Branch:** \`${prData.headRef}\`\n- **HEAD SHA:** ${originalHeadSha}${mergeCommitInfo}${mergeMethodResult.productionHistory ? `\n- **Merge Method Reason:** ${mergeMethodResult.reason}` : ''}`,
   );
 
   return {

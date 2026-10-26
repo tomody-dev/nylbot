@@ -96,6 +96,7 @@ function parseConfig(core: ActionsCore): ActionConfig {
   return {
     releaseBranchPrefix: core.getInput('release-branch-prefix') || 'release/',
     developBranch: core.getInput('develop-branch') || 'develop',
+    productionBranch: core.getInput('production-branch').trim(),
     syncBranchPrefix: core.getInput('sync-branch-prefix') || 'fix/sync/',
     mergeableRetryCount,
     mergeableRetryInterval,

@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { executeAction, buildSummaryMarkdown } from '../src/action.js';
 import type { ActionConfig, EventContext } from '../src/types.js';
 
-import { createMockOctokit } from './helpers/octokit.mock.js';
+import { createMockOctokit, type MockedOctokit } from './helpers/octokit.mock.js';
 
 // =============================================================================
 // Test Utilities
@@ -24,6 +24,7 @@ function createConfig(overrides: Partial<ActionConfig> = {}): ActionConfig {
   return {
     releaseBranchPrefix: 'release/',
     developBranch: 'develop',
+    productionBranch: '',
     syncBranchPrefix: 'fix/sync/',
     mergeableRetryCount: 5,
     mergeableRetryInterval: 10,
@@ -80,6 +81,172 @@ function createPRWithMergeableState(
     title: 'feat: test pull request',
   };
 }
+
+describe('production history back-merges', () => {
+  const head = 'abc1234567890';
+  function comparison(containsHead: boolean, productionSha = 'production-sha') {
+    return {
+      data: {
+        status: containsHead ? 'behind' : 'diverged',
+        ahead_by: containsHead ? 0 : 1,
+        behind_by: 1,
+        base_commit: { sha: productionSha },
+        merge_base_commit: { sha: containsHead ? head : 'common-sha' },
+      },
+    } as Awaited<ReturnType<MockedOctokit['rest']['repos']['compareCommitsWithBasehead']>>;
+  }
+  function approvedOctokit() {
+    const octokit = createMockOctokit();
+    octokit.paginate
+      .mockResolvedValue([])
+      .mockResolvedValueOnce([
+        { id: 1, state: 'APPROVED', commit_id: head, user: { login: 'reviewer', type: 'User' } },
+      ]);
+    octokit.rest.repos.compareCommitsWithBasehead.mockResolvedValue(comparison(true));
+    return octokit;
+  }
+  const config = createConfig({ productionBranch: 'master' });
+
+  it('merges the production-integrated head with a merge commit and records the SHA evidence', async () => {
+    const octokit = approvedOctokit();
+    const result = await executeAction(octokit, createEventContext(), config);
+    expect(result.mergeMethod).toBe('merge');
+    expect(octokit.rest.pulls.merge).toHaveBeenCalledWith(
+      expect.objectContaining({ merge_method: 'merge', sha: head }),
+    );
+    expect(octokit.rest.repos.compareCommitsWithBasehead).toHaveBeenCalledTimes(2);
+    const success = octokit.rest.issues.createComment.mock.calls.find(([params]) =>
+      params?.body?.includes('## Merged by'),
+    );
+    expect(success?.[0]?.body).toContain('Merge Method Reason');
+    expect(success?.[0]?.body).toContain('production-sha');
+    expect(success?.[0]?.body).toContain(head);
+  });
+
+  it('keeps ordinary feature PRs as squash when production does not contain the head', async () => {
+    const octokit = approvedOctokit();
+    octokit.rest.repos.compareCommitsWithBasehead.mockResolvedValue(comparison(false));
+    const result = await executeAction(octokit, createEventContext(), config);
+    expect(result.status).toBe('merged');
+    expect(octokit.rest.pulls.merge).toHaveBeenCalledWith(expect.objectContaining({ merge_method: 'squash' }));
+  });
+
+  it.each(['HTTP 403', 'HTTP 404', 'HTTP 422', 'HTTP 429', 'HTTP 500', 'Timeout'])(
+    'stops on initial history lookup failure: %s',
+    async (message) => {
+      const octokit = approvedOctokit();
+      octokit.rest.repos.compareCommitsWithBasehead.mockRejectedValue(new Error(message));
+      const result = await executeAction(octokit, createEventContext(), config);
+      expect(result.status).toBe('failed');
+      expect(result.message).toContain('selection failed');
+      expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+      expect(
+        octokit.rest.issues.createComment.mock.calls.some(([params]) =>
+          params?.body?.includes('No merge was attempted'),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it('stops when the configured production branch cannot be read', async () => {
+    const octokit = approvedOctokit();
+    octokit.rest.repos.getBranch.mockRejectedValue(new Error('Not Found'));
+    expect((await executeAction(octokit, createEventContext(), config)).status).toBe('failed');
+    expect(octokit.rest.repos.compareCommitsWithBasehead).not.toHaveBeenCalled();
+    expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('stops if the final history lookup fails', async () => {
+    const octokit = approvedOctokit();
+    octokit.rest.repos.compareCommitsWithBasehead
+      .mockResolvedValueOnce(comparison(true))
+      .mockRejectedValueOnce(new Error('Timeout'));
+    const result = await executeAction(octokit, createEventContext(), config);
+    expect(result.message).toContain('revalidation failed');
+    expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('accepts normal production advances and records the final snapshot', async () => {
+    const octokit = approvedOctokit();
+    octokit.rest.repos.getBranch
+      .mockResolvedValueOnce({ data: { commit: { sha: 'production-sha' } } } as Awaited<
+        ReturnType<typeof octokit.rest.repos.getBranch>
+      >)
+      .mockResolvedValueOnce({ data: { commit: { sha: 'advanced-sha' } } } as Awaited<
+        ReturnType<typeof octokit.rest.repos.getBranch>
+      >);
+    octokit.rest.repos.compareCommitsWithBasehead
+      .mockResolvedValueOnce(comparison(true))
+      .mockResolvedValueOnce(comparison(true, 'advanced-sha'));
+    const result = await executeAction(octokit, createEventContext(), config);
+    expect(result.status).toBe('merged');
+    const success = octokit.rest.issues.createComment.mock.calls.find(([params]) =>
+      params?.body?.includes('## Merged by'),
+    );
+    expect(success?.[0]?.body).toContain('advanced-sha');
+  });
+
+  it.each([
+    [true, false],
+    [false, true],
+  ])('stops if history changes the decision from contained=%s to contained=%s', async (initial, final) => {
+    const octokit = approvedOctokit();
+    octokit.rest.repos.getBranch
+      .mockResolvedValueOnce({ data: { commit: { sha: 'production-sha' } } } as Awaited<
+        ReturnType<typeof octokit.rest.repos.getBranch>
+      >)
+      .mockResolvedValueOnce({ data: { commit: { sha: 'changed-sha' } } } as Awaited<
+        ReturnType<typeof octokit.rest.repos.getBranch>
+      >);
+    octokit.rest.repos.compareCommitsWithBasehead
+      .mockResolvedValueOnce(comparison(initial ?? false))
+      .mockResolvedValueOnce(comparison(final ?? false, 'changed-sha'));
+    const result = await executeAction(octokit, createEventContext(), config);
+    expect(result.message).toContain('merge method changed');
+    expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it.each(['head', 'base'] as const)('retains the PR %s stability gate', async (field) => {
+    const octokit = approvedOctokit();
+    const original = createPRWithMergeableState('clean');
+    const changed =
+      field === 'head'
+        ? { ...original, head: { ...original.head, sha: 'new-sha' } }
+        : { ...original, base: { ...original.base, ref: 'master' } };
+    octokit.rest.pulls.get
+      .mockResolvedValueOnce({ data: original } as Awaited<ReturnType<typeof octokit.rest.pulls.get>>)
+      .mockResolvedValueOnce({ data: changed } as Awaited<ReturnType<typeof octokit.rest.pulls.get>>);
+    const result = await executeAction(octokit, createEventContext(), config);
+    expect(result.message).toContain('TOCTOU');
+    expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it.each(['approval', 'threads', 'conflict'] as const)(
+    'preserves the required %s check for a production-integrated head',
+    async (check) => {
+      const octokit = approvedOctokit();
+      if (check === 'approval') {
+        octokit.paginate.mockReset().mockResolvedValue([]);
+      } else if (check === 'threads') {
+        octokit.graphql.mockResolvedValue({
+          repository: {
+            pullRequest: {
+              reviewThreads: { nodes: [{ isResolved: false }], pageInfo: { hasNextPage: false, endCursor: null } },
+            },
+          },
+        });
+      } else {
+        octokit.rest.pulls.get.mockResolvedValue({ data: createPRWithMergeableState('dirty', false) } as Awaited<
+          ReturnType<typeof octokit.rest.pulls.get>
+        >);
+      }
+      const result = await executeAction(octokit, createEventContext(), config);
+      expect(result.status).toBe('failed');
+      expect(result.message).toContain('checks failed');
+      expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+    },
+  );
+});
 
 describe('executeAction', () => {
   describe('event type validation', () => {

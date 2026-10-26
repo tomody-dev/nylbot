@@ -14,7 +14,14 @@ import {
   VALID_PERMISSIONS,
   CONVENTIONAL_COMMIT_REGEX,
 } from './constants.js';
-import type { ActionConfig, PullRequestData, CheckResult, MergeMethodResult, MergeOptions } from './types.js';
+import type {
+  ActionConfig,
+  PullRequestData,
+  CheckResult,
+  MergeMethodResult,
+  MergeOptions,
+  CommitComparison,
+} from './types.js';
 
 /**
  * Checks if a PR title follows the Conventional Commits format.
@@ -195,6 +202,42 @@ export function determineMergeMethod(headRef: string, baseRef: string, config: A
     method: 'merge',
     reason: `Default merge commit for \`${headRef}\` into \`${baseRef}\``,
   };
+}
+
+/**
+ * Checks whether the PR head is an ancestor of the production snapshot.
+ * The comparison direction is production SHA...head SHA. Inconsistent or
+ * incomplete responses must stop selection rather than select squash.
+ */
+export function isHeadInProduction(comparison: CommitComparison, productionSha: string, headSha: string): boolean {
+  const { status, ahead_by: ahead, behind_by: behind } = comparison;
+  if (
+    !['identical', 'behind', 'ahead', 'diverged'].includes(status) ||
+    !Number.isSafeInteger(ahead) ||
+    ahead < 0 ||
+    !Number.isSafeInteger(behind) ||
+    behind < 0 ||
+    comparison.base_commit?.sha !== productionSha ||
+    !comparison.merge_base_commit?.sha
+  ) {
+    throw new Error('Invalid production history comparison response');
+  }
+
+  const containsHead = status === 'behind' || status === 'identical';
+  if (
+    containsHead !== (ahead === 0 && comparison.merge_base_commit.sha === headSha) ||
+    (status === 'identical' && (behind !== 0 || productionSha !== headSha)) ||
+    (status === 'behind' && (behind === 0 || productionSha === headSha)) ||
+    (status === 'ahead' && (ahead === 0 || behind !== 0 || comparison.merge_base_commit.sha !== productionSha)) ||
+    (status === 'diverged' &&
+      (ahead === 0 ||
+        behind === 0 ||
+        comparison.merge_base_commit.sha === productionSha ||
+        comparison.merge_base_commit.sha === headSha))
+  ) {
+    throw new Error('Inconsistent production history comparison response');
+  }
+  return containsHead;
 }
 
 /**

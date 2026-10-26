@@ -5,7 +5,35 @@
  * These functions handle API calls, data fetching, and mutations.
  */
 
-import type { Octokit, PullRequestData, ReviewsArray } from './types.js';
+import type { Octokit, PullRequestData, ReviewsArray, ProductionHistory } from './types.js';
+import { isHeadInProduction } from './validation.js';
+
+/**
+ * Captures the production branch and compares immutable SHAs against the PR head.
+ * API failures propagate: inability to establish ancestry is not a negative match.
+ */
+export async function fetchProductionHistory(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string,
+  headSha: string,
+): Promise<ProductionHistory> {
+  const production = await octokit.rest.repos.getBranch({ owner, repo, branch });
+  const productionSha = production.data.commit.sha;
+  const comparison = await octokit.rest.repos.compareCommitsWithBasehead({
+    owner,
+    repo,
+    basehead: `${productionSha}...${headSha}`,
+    per_page: 1,
+  });
+  return {
+    branch,
+    productionSha,
+    headSha,
+    containsHead: isHeadInProduction(comparison.data, productionSha, headSha),
+  };
+}
 
 /**
  * Adds a reaction to a comment.
